@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.local
+node_modules/
+.next/
+dist/
+*.log
+.DS_Store
+qdrant_data/
