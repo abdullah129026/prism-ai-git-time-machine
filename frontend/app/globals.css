@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* PRISM base — dark is the native medium. No gradients, no glassmorphism. */
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: #08090a;
+  color: #e8eaed;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(94, 106, 210, 0.35);
+}
+
+@layer components {
+  /* Quiet 1px hairline used for all panel separations. */
+  .hairline {
+    border-color: rgba(255, 255, 255, 0.07);
+  }
+
+  /* Keyboard shortcut chip, e.g. ⌘K. */
+  .kbd {
+    @apply inline-flex items-center rounded border hairline bg-elevated px-1.5 py-0.5 font-mono text-xs text-ink-dim;
+  }
+
+  /* Primary action — the single accent color. */
+  .btn-accent {
+    @apply inline-flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#6d78dd] disabled:opacity-40;
+  }
+
+  .btn-quiet {
+    @apply inline-flex items-center gap-1.5 rounded border hairline bg-surface px-3 py-1.5 text-sm text-ink transition-colors duration-150 hover:bg-elevated;
+  }
+
+  .input-dark {
+    @apply w-full rounded border hairline bg-surface px-3 py-1.5 font-mono text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none;
+  }
+}
