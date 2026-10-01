@@ -6,13 +6,13 @@
 
 **Days 1–2: Foundation**
 - [x] Repo scaffold, docs, CI, Docker
-- [ ] FastAPI skeleton with health checks
-- [ ] Next.js skeleton with design system
+- [x] FastAPI skeleton with health checks
+- [x] Next.js skeleton with design system
 
 **Days 3–5: Git parsing**
-- [ ] Clone + walk history with GitPython (paginated, background jobs)
-- [ ] Per-commit file stats, diff extraction
-- [ ] Timeline JSON API (`GET /repos/{id}/timeline`)
+- [x] Clone + walk history with GitPython (paginated, background jobs)
+- [x] Per-commit file stats, diff extraction
+- [x] Timeline JSON API (`GET /repos/{id}/timeline`)
 
 **Days 6–7: Intent engine**
 - [ ] Groq integration, intent prompt engineering
