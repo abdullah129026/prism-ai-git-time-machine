@@ -15,9 +15,9 @@
 - [x] Timeline JSON API (`GET /repos/{id}/timeline`)
 
 **Days 6–7: Intent engine**
-- [ ] Groq integration, intent prompt engineering
-- [ ] "Why / what bug / what risk" per commit, cached
-- [ ] Commit inspector UI (2D panel)
+- [x] Groq integration, intent prompt engineering
+- [x] "Why / what bug / what risk" per commit, cached
+- [x] Commit inspector UI (2D panel)
 
 ## Week 2 — 3D & Intelligence
 
