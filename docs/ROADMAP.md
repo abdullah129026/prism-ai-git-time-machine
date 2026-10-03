@@ -22,9 +22,9 @@
 ## Week 2 — 3D & Intelligence
 
 **Days 8–10: 3D time machine**
-- [ ] R3F canvas: commit nodes on time axis
-- [ ] File "buildings" extruded by churn
-- [ ] Camera fly-through + scrubber
+- [x] R3F canvas: commit nodes on time axis
+- [x] File "buildings" extruded by churn
+- [x] Camera fly-through + scrubber
 
 **Days 11–12: Conflict prediction**
 - [ ] Tree-sitter AST extraction per branch
