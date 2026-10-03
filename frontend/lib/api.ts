@@ -76,3 +76,85 @@ export function warmIntentCache(
     body: JSON.stringify({ limit }),
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* Repo ingest (Week 1, Days 3–5): submit a URL, poll the background   */
+/* job until the repo is parsed.                                       */
+/* ------------------------------------------------------------------ */
+
+export interface IngestJobResponse {
+  job_id: string;
+  status: string;
+}
+
+export interface JobStatus {
+  job_id: string;
+  repo_id: string;
+  /** queued | cloning | parsing | done | failed */
+  status: string;
+  stage_detail: string;
+  commits_parsed: number;
+  error: string | null;
+}
+
+/** Submit a repo URL for background ingestion. Resolves with the job id. */
+export function ingestRepo(repoUrl: string): Promise<IngestJobResponse> {
+  return request<IngestJobResponse>("/repos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ repo_url: repoUrl }),
+  });
+}
+
+/** Poll the status of an ingest job. */
+export function fetchJobStatus(jobId: string): Promise<JobStatus> {
+  return request<JobStatus>(`/repos/${encodeURIComponent(jobId)}`);
+}
+
+/* ------------------------------------------------------------------ */
+/* Timeline (Week 2, Days 8–10): 3D-ready commit graph + file churn.   */
+/* ------------------------------------------------------------------ */
+
+export interface TimelineNode {
+  sha: string;
+  message: string;
+  author: string;
+  committed_at: string;
+  parents: string[];
+  additions: number;
+  deletions: number;
+  files_changed: number;
+}
+
+export interface TimelineEdge {
+  source: string;
+  target: string;
+}
+
+export interface FileChurn {
+  path: string;
+  additions: number;
+  deletions: number;
+  commits: number;
+}
+
+export interface TimelineResponse {
+  repo_id: string;
+  repo_url: string;
+  commit_count: number;
+  nodes: TimelineNode[];
+  edges: TimelineEdge[];
+  file_churn: FileChurn[];
+}
+
+/** 3D-ready timeline JSON: commit nodes on a time axis, parent edges,
+ *  and per-file churn for the file "buildings" view. */
+export function fetchTimeline(
+  repoId: string,
+  limit = 500,
+): Promise<TimelineResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return request<TimelineResponse>(
+    `/repos/${encodeURIComponent(repoId)}/timeline?${params}`,
+  );
+}
