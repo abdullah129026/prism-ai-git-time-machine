@@ -2,7 +2,12 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo } from "react";
-import { Loader2, RotateCcw } from "lucide-react";
+import {
+  Building2,
+  GitCommitHorizontal,
+  Loader2,
+  RotateCcw,
+} from "lucide-react";
 
 import { usePrismStore } from "@/lib/store";
 import EmptyState from "./EmptyState";
@@ -23,9 +28,44 @@ function SceneFallback({ label }: { label: string }) {
   );
 }
 
+/** Timeline / City view toggle, floating over the scene. */
+function ViewToolbar() {
+  const viewMode = usePrismStore((s) => s.viewMode);
+  const setViewMode = usePrismStore((s) => s.setViewMode);
+  const commitCount = usePrismStore((s) => s.timeline?.nodes.length ?? 0);
+
+  const btn = (active: boolean) =>
+    active
+      ? "btn-accent !border-0 !px-2.5 !py-1 !text-xs"
+      : "btn-quiet !border-0 !px-2.5 !py-1 !text-xs";
+
+  return (
+    <div className="absolute left-3 top-3 z-10 flex items-center gap-1 rounded border hairline bg-surface p-1">
+      <button
+        className={btn(viewMode === "timeline")}
+        onClick={() => setViewMode("timeline")}
+      >
+        <GitCommitHorizontal size={14} />
+        Timeline
+      </button>
+      <button
+        className={btn(viewMode === "city")}
+        onClick={() => setViewMode("city")}
+      >
+        <Building2 size={14} />
+        City
+      </button>
+      <span className="px-2 font-mono text-xs text-ink-faint">
+        {commitCount} commits
+      </span>
+    </div>
+  );
+}
+
 /**
  * Timeline area: empty state → loading → error → the 3D explorer
- * (commit nodes on a time axis) with keyboard navigation.
+ * (commit nodes on a time axis, or file-churn buildings) with a
+ * scrubber, view toggle, and keyboard navigation.
  */
 export default function TimelineCanvas() {
   const repoId = usePrismStore((s) => s.repoId);
@@ -33,6 +73,7 @@ export default function TimelineCanvas() {
   const timelineStatus = usePrismStore((s) => s.timelineStatus);
   const timelineError = usePrismStore((s) => s.timelineError);
   const loadTimeline = usePrismStore((s) => s.loadTimeline);
+  const viewMode = usePrismStore((s) => s.viewMode);
   const selectedCommit = usePrismStore((s) => s.selectedCommit);
   const selectCommit = usePrismStore((s) => s.selectCommit);
 
@@ -124,12 +165,16 @@ export default function TimelineCanvas() {
               </p>
             </div>
           ) : (
-            <Scene3D
-              layout={layout}
-              timeline={timeline}
-              selectedSha={selectedCommit}
-              onSelect={selectCommit}
-            />
+            <>
+              <ViewToolbar />
+              <Scene3D
+                layout={layout}
+                timeline={timeline}
+                viewMode={viewMode}
+                selectedSha={selectedCommit}
+                onSelect={selectCommit}
+              />
+            </>
           )}
         </>
       )}

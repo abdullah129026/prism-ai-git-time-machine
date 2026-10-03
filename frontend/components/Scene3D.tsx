@@ -6,12 +6,15 @@ import { Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 
 import type { TimelineResponse } from "@/lib/api";
+import type { ViewMode } from "@/lib/store";
 import CommitGraph from "./CommitGraph";
+import CityView from "./CityView";
 import type { TimelineLayout } from "./scene/layout";
 
 interface Scene3DProps {
   layout: TimelineLayout;
   timeline: TimelineResponse;
+  viewMode: ViewMode;
   selectedSha: string | null;
   onSelect: (sha: string | null) => void;
 }
@@ -81,10 +84,11 @@ function CameraRig({ focus }: { focus: THREE.Vector3 | null }) {
   return null;
 }
 
-/** The R3F 3D explorer: commit nodes on a time axis. */
+/** The R3F 3D explorer: commit nodes on a time axis, or file buildings. */
 export default function Scene3D({
   layout,
   timeline,
+  viewMode,
   selectedSha,
   onSelect,
 }: Scene3DProps) {
@@ -119,14 +123,18 @@ export default function Scene3D({
         infiniteGrid
       />
 
-      <CommitGraph
-        layout={layout}
-        nodes={timeline.nodes}
-        selectedSha={selectedSha}
-        onSelect={onSelect}
-      />
+      {viewMode === "timeline" ? (
+        <CommitGraph
+          layout={layout}
+          nodes={timeline.nodes}
+          selectedSha={selectedSha}
+          onSelect={onSelect}
+        />
+      ) : (
+        <CityView files={timeline.file_churn} />
+      )}
 
-      <CameraRig focus={focus} />
+      <CameraRig focus={viewMode === "timeline" ? focus : null} />
       <OrbitControls
         makeDefault
         enableDamping
