@@ -47,4 +47,11 @@ body {
   .input-dark {
     @apply w-full rounded border hairline bg-surface px-3 py-1.5 font-mono text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none;
   }
+
+  /* Timeline scrubber: single accent color, dense track. */
+  .prism-range {
+    accent-color: #5e6ad2;
+    height: 20px;
+    cursor: pointer;
+  }
 }

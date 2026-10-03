@@ -11,6 +11,7 @@ import {
 
 import { usePrismStore } from "@/lib/store";
 import EmptyState from "./EmptyState";
+import Scrubber from "./Scrubber";
 import { layoutTimeline } from "./scene/layout";
 
 /** The R3F canvas is client-only — three.js needs the DOM. */
@@ -174,6 +175,14 @@ export default function TimelineCanvas() {
                 selectedSha={selectedCommit}
                 onSelect={selectCommit}
               />
+              {viewMode === "timeline" && (
+                <Scrubber
+                  layout={layout}
+                  nodes={timeline.nodes}
+                  selectedSha={selectedCommit}
+                  onSelect={selectCommit}
+                />
+              )}
             </>
           )}
         </>
