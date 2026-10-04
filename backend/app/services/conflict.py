@@ -110,14 +110,14 @@ def extract_symbols(source: bytes, path: str) -> list[Symbol]:
                     "utf-8", errors="replace")
         return None
 
-    def walk(node, prefix: str = "") -> None:
+    def walk(node, prefix: str = "", in_class: bool = False) -> None:
         if node.type in _SYMBOL_NODES:
             name = name_of(node)
             if name is None:
                 return
             kind = (
                 "class" if "class" in node.type
-                else "method" if node.type == "method_definition"
+                else "method" if node.type == "method_definition" or in_class
                 else "interface" if node.type == "interface_declaration"
                 else "function"
             )
@@ -127,7 +127,12 @@ def extract_symbols(source: bytes, path: str) -> list[Symbol]:
                 start_line=node.start_point[0] + 1,
                 end_line=node.end_point[0] + 1,
             ))
-            prefix = qualified  # nest methods under their class
+            # Nest methods under their class; remember we're inside one
+            # (tree-sitter-python uses function_definition for methods).
+            walk_children = node.type in ("class_definition", "class_declaration")
+            for child in node.children:
+                walk(child, qualified, in_class or walk_children)
+            return
         elif node.type == "variable_declarator":
             # const handler = () => {} — name the arrow/function binding,
             # don't descend into its body.
@@ -149,7 +154,7 @@ def extract_symbols(source: bytes, path: str) -> list[Symbol]:
                 ))
                 return
         for child in node.children:
-            walk(child, prefix)
+            walk(child, prefix, in_class)
 
     walk(parser.parse(source).root_node)
     return symbols
@@ -209,10 +214,7 @@ def predict_conflict(repo_path: str | Path, base: str, head: str) -> ConflictPre
         base_sha = repo.git.rev_parse("--verify", base).strip()
         head_sha = repo.git.rev_parse("--verify", head).strip()
     except GitCommandError as exc:
-        detail = (exc.stderr or "").strip().splitlines()
-        raise ValueError(
-            f"unknown branch or ref: {detail[0] if detail else base!r}/{head!r}"
-        ) from exc
+        raise ValueError(f"unknown branch or ref: {base!r} / {head!r}") from exc
 
     merge_base = repo.git.merge_base(base_sha, head_sha).strip().split()[0]
 
