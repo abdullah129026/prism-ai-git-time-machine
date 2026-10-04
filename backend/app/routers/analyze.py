@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.services import git_parser
+from app.services import conflict as conflict_service
 from app.services import intent as intent_service
 from app.services.intent import CommitIntent, IntentUnavailableError
 from app.services.jobs import repo_dir, store
@@ -220,10 +221,51 @@ def analyze_intent(repo_id: str, body: AnalyzeIntentRequest,
     return {"started": True, "repo_id": repo_id, "limit": body.limit}
 
 
-@router.post("/{repo_id}/predict-conflict")
-def predict_conflict(repo_id: str, body: ConflictRequest) -> dict:
-    # Week 2 (days 11-12)
-    raise NotImplementedError
+class ConflictFileOverlap(BaseModel):
+    path: str
+    symbols: list[str]
+    shared_lines: int
+
+
+class ConflictPredictionResponse(BaseModel):
+    base: str
+    head: str
+    probability: float
+    overlapping_symbols: list[str]
+    overlapping_files: list[ConflictFileOverlap]
+    explanation: str
+
+
+@router.post("/{repo_id}/predict-conflict",
+            response_model=ConflictPredictionResponse)
+def predict_conflict(repo_id: str, body: ConflictRequest) -> ConflictPredictionResponse:
+    """Merge-conflict probability for `head` into `base`.
+
+    Compares both branches against their merge-base: files changed on
+    both sides feed Tree-sitter AST overlap analysis. 404 when the
+    repo or either ref is unknown.
+    """
+    snapshot = store.get_repo(repo_id)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404, detail="unknown repo_id — ingest a repo first")
+    try:
+        result = conflict_service.predict_conflict(
+            repo_dir(repo_id), body.base, body.head)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ConflictPredictionResponse(
+        base=result.base,
+        head=result.head,
+        probability=result.probability,
+        overlapping_symbols=result.overlapping_symbols,
+        overlapping_files=[
+            ConflictFileOverlap(
+                path=f.path, symbols=f.symbols, shared_lines=f.shared_lines)
+            for f in result.overlapping_files
+        ],
+        explanation=result.explanation,
+    )
 
 
 @router.get("/{repo_id}/ownership")
