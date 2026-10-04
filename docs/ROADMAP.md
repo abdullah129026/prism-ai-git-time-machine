@@ -27,9 +27,9 @@
 - [x] Camera fly-through + scrubber
 
 **Days 11–12: Conflict prediction**
-- [ ] Tree-sitter AST extraction per branch
-- [ ] Overlap analysis → conflict probability
-- [ ] Branch compare UI
+- [x] Tree-sitter AST extraction per branch
+- [x] Overlap analysis → conflict probability
+- [x] Branch compare UI
 
 **Days 13–14: Semantic ownership**
 - [ ] Qdrant embeddings for code chunks
