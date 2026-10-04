@@ -158,3 +158,39 @@ export function fetchTimeline(
     `/repos/${encodeURIComponent(repoId)}/timeline?${params}`,
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Conflict prediction (Week 2, Days 11–12): AST overlap between two   */
+/* branches, scored against their merge-base.                          */
+/* ------------------------------------------------------------------ */
+
+export interface ConflictFileOverlap {
+  path: string;
+  symbols: string[];
+  shared_lines: number;
+}
+
+export interface ConflictPrediction {
+  base: string;
+  head: string;
+  probability: number;
+  overlapping_symbols: string[];
+  overlapping_files: ConflictFileOverlap[];
+  explanation: string;
+}
+
+/** Probability that merging `head` into `base` hits a conflict. */
+export function predictConflict(
+  repoId: string,
+  base: string,
+  head: string,
+): Promise<ConflictPrediction> {
+  return request<ConflictPrediction>(
+    `/repos/${encodeURIComponent(repoId)}/predict-conflict`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ base, head }),
+    },
+  );
+}

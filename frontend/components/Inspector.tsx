@@ -12,6 +12,7 @@ import {
 
 import { ApiError, fetchCommitIntent, type IntentResponse } from "@/lib/api";
 import { usePrismStore } from "@/lib/store";
+import BranchCompare from "@/components/BranchCompare";
 
 type Status = "idle" | "loading" | "ready" | "error";
 
@@ -100,6 +101,7 @@ export default function Inspector() {
         {status === "ready" && data && (
           <InspectorBody data={data} onRetry={reload} />
         )}
+        <BranchCompare />
       </div>
     </aside>
   );
