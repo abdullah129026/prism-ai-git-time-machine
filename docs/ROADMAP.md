@@ -32,9 +32,9 @@
 - [x] Branch compare UI
 
 **Days 13–14: Semantic ownership**
-- [ ] Qdrant embeddings for code chunks
-- [ ] Ownership scoring (intent-weighted, not blame)
-- [ ] Ownership view UI
+- [x] Qdrant embeddings for code chunks
+- [x] Ownership scoring (intent-weighted, not blame)
+- [x] Ownership view UI
 
 ## Week 3 — Harden & Ship
 
