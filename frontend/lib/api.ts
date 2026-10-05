@@ -179,6 +179,41 @@ export interface ConflictPrediction {
   explanation: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* Semantic ownership (Week 2, Days 13–14): who understands this code, */
+/* intent-weighted instead of git blame.                               */
+/* ------------------------------------------------------------------ */
+
+export interface OwnershipOwner {
+  login: string;
+  score: number;
+  lines: number;
+  commits: number;
+  evidence: string[];
+}
+
+export interface OwnershipResponse {
+  repo_id: string;
+  path: string | null;
+  commit_count: number;
+  owners: OwnershipOwner[];
+  related_paths: string[];
+}
+
+/** Ranked authors for a path (or the whole repo), plus files holding
+ *  semantically similar code. */
+export function fetchOwnership(
+  repoId: string,
+  path?: string,
+): Promise<OwnershipResponse> {
+  const params = new URLSearchParams();
+  if (path?.trim()) params.set("path", path.trim());
+  const query = params.toString() ? `?${params}` : "";
+  return request<OwnershipResponse>(
+    `/repos/${encodeURIComponent(repoId)}/ownership${query}`,
+  );
+}
+
 /** Probability that merging `head` into `base` hits a conflict. */
 export function predictConflict(
   repoId: string,

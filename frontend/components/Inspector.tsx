@@ -13,6 +13,7 @@ import {
 import { ApiError, fetchCommitIntent, type IntentResponse } from "@/lib/api";
 import { usePrismStore } from "@/lib/store";
 import BranchCompare from "@/components/BranchCompare";
+import OwnershipView from "@/components/OwnershipView";
 
 type Status = "idle" | "loading" | "ready" | "error";
 
@@ -102,6 +103,7 @@ export default function Inspector() {
           <InspectorBody data={data} onRetry={reload} />
         )}
         <BranchCompare />
+        <OwnershipView />
       </div>
     </aside>
   );
