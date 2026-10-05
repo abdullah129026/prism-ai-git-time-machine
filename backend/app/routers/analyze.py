@@ -5,9 +5,11 @@ from pydantic import BaseModel, Field
 
 from app.services import git_parser
 from app.services import conflict as conflict_service
+from app.services import embeddings as embeddings_service
 from app.services import intent as intent_service
 from app.services.intent import CommitIntent, IntentUnavailableError
 from app.services.jobs import repo_dir, store
+from app.services import ownership as ownership_service
 
 router = APIRouter()
 
@@ -268,7 +270,75 @@ def predict_conflict(repo_id: str, body: ConflictRequest) -> ConflictPredictionR
     )
 
 
-@router.get("/{repo_id}/ownership")
-def ownership(repo_id: str, path: str | None = None) -> dict:
-    # Week 2 (days 13-14)
-    raise NotImplementedError
+class OwnershipOwner(BaseModel):
+    login: str
+    score: float
+    lines: int
+    commits: int
+    evidence: list[str]
+
+
+class OwnershipResponse(BaseModel):
+    repo_id: str
+    path: str | None
+    commit_count: int
+    owners: list[OwnershipOwner]
+    related_paths: list[str]
+
+
+@router.get("/{repo_id}/ownership", response_model=OwnershipResponse)
+def ownership(repo_id: str, path: str | None = None) -> OwnershipResponse:
+    """Semantic code ownership: who understands this code, not git blame.
+
+    Scores authors by substantive, recent, intent-understood changes
+    (cached intent confidence weights each commit). `path` scopes to one
+    file or directory; without it the whole repo is ranked. `related_paths`
+    lists files with semantically similar code, from the Qdrant chunk index.
+    """
+    snapshot = store.get_repo(repo_id)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404, detail="unknown repo_id — ingest a repo first")
+    try:
+        owners = ownership_service.semantic_owners(repo_id, path)
+    except ValueError as exc:
+        detail = str(exc)
+        status_code = 400 if detail.startswith("invalid path") else 404
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+
+    # Keep the chunk index warm: top-churn files, bounded, idempotent.
+    churn: dict[str, int] = {}
+    for commit in snapshot["commits"]:
+        for f in commit.files:
+            churn[f.path] = churn.get(f.path, 0) + f.additions + f.deletions
+    top_files = sorted(churn, key=churn.get, reverse=True)[:20]
+    if path and path not in top_files:
+        top_files.append(path)
+    embeddings_service.index_scope(repo_dir(repo_id), repo_id, top_files)
+
+    related_paths: list[str] = []
+    if path:
+        target = repo_dir(repo_id) / path
+        try:
+            text = target.read_text(encoding="utf-8") if target.is_file() else ""
+        except OSError:
+            text = ""
+        if text:
+            hits = embeddings_service.similar_chunks(
+                repo_id, text, top_k=5, exclude_path=path)
+            for hit in hits:
+                if hit.path not in related_paths:
+                    related_paths.append(hit.path)
+
+    return OwnershipResponse(
+        repo_id=repo_id,
+        path=path,
+        commit_count=sum(o.commits for o in owners),
+        owners=[
+            OwnershipOwner(
+                login=o.login, score=o.score, lines=o.lines,
+                commits=o.commits, evidence=o.evidence)
+            for o in owners
+        ],
+        related_paths=related_paths,
+    )
