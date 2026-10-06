@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { Html } from "@react-three/drei";
 
 import type { TimelineNode } from "@/lib/api";
+import { commitMatchesFilter, usePrismStore } from "@/lib/store";
 import { formatShortDate, type TimelineLayout } from "./scene/layout";
 
 interface CommitGraphProps {
@@ -16,6 +17,7 @@ interface CommitGraphProps {
 }
 
 const NODE_COLOR = new THREE.Color("#565d66");
+const DIM_COLOR = new THREE.Color("#1f2327");
 const HOVER_COLOR = new THREE.Color("#aab2bc");
 const ACCENT = "#5E6AD2";
 
@@ -32,10 +34,23 @@ export default function CommitGraph({
 }: CommitGraphProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const [hovered, setHovered] = useState<number | null>(null);
+  const filterQuery = usePrismStore((s) => s.filterQuery);
+  const filterAuthor = usePrismStore((s) => s.filterAuthor);
 
   const metaBySha = useMemo(() => new Map(nodes.map((n) => [n.sha, n])), [nodes]);
 
-  // Place instances + base colors once per layout.
+  /** Which nodes survive the current filters (for dimming the rest). */
+  const matchFlags = useMemo(
+    () =>
+      layout.nodes.map((p) => {
+        const meta = metaBySha.get(p.sha);
+        return !meta || commitMatchesFilter(meta, filterQuery, filterAuthor);
+      }),
+    [layout, metaBySha, filterQuery, filterAuthor],
+  );
+  const baseColor = (i: number) => (matchFlags[i] ? NODE_COLOR : DIM_COLOR);
+
+  // Place instances + base colors once per layout / filter change.
   useLayoutEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
@@ -44,11 +59,12 @@ export default function CommitGraph({
       m.makeScale(p.radius, p.radius, p.radius);
       m.setPosition(p.x, p.y, p.z);
       mesh.setMatrixAt(i, m);
-      mesh.setColorAt(i, NODE_COLOR);
+      mesh.setColorAt(i, baseColor(i));
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [layout]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, matchFlags]);
 
   // Hover tint, restored on unhover.
   useLayoutEffect(() => {
@@ -57,10 +73,11 @@ export default function CommitGraph({
     mesh.setColorAt(hovered, HOVER_COLOR);
     mesh.instanceColor.needsUpdate = true;
     return () => {
-      mesh.setColorAt(hovered, NODE_COLOR);
+      mesh.setColorAt(hovered, baseColor(hovered));
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     };
-  }, [hovered]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hovered, matchFlags]);
 
   const edgePositions = useMemo(() => {
     const arr = new Float32Array(layout.edges.length * 6);
