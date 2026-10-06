@@ -10,6 +10,7 @@ export default function EmptyState() {
   const exploreRepo = usePrismStore((s) => s.exploreRepo);
   const ingestStatus = usePrismStore((s) => s.ingestStatus);
   const ingestError = usePrismStore((s) => s.ingestError);
+  const ingestProgress = usePrismStore((s) => s.ingestProgress);
 
   const ingesting = ingestStatus === "ingesting";
 
@@ -60,8 +61,10 @@ export default function EmptyState() {
         {ingesting ? "Cloning and parsing…" : "Explore repository"}
       </button>
       {ingesting && (
-        <p className="text-xs text-ink-faint">
-          Large repos can take a minute. Parsing runs in the background.
+        <p className="font-mono text-xs text-ink-dim">
+          {ingestProgress
+            ? `${ingestProgress.stage} — ${ingestProgress.commits} commits parsed`
+            : "Starting…"}
         </p>
       )}
       {ingestStatus === "error" && ingestError && (
