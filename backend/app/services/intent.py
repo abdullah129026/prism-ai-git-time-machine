@@ -1,6 +1,6 @@
 """LLM intent engine: why was this changed? what bug? what risk?
 
-Uses Groq (llama-3.3-70b-versatile) with structured JSON output. Results are
+Uses Groq (openai/gpt-oss-120b) with structured JSON output. Results are
 cached per repo+sha (memory + disk) so a commit is only ever analyzed once.
 """
 
@@ -14,7 +14,9 @@ from dataclasses import asdict, dataclass
 log = logging.getLogger(__name__)
 
 #: Groq model used for intent analysis.
-INTENT_MODEL = "llama-3.3-70b-versatile"
+#: (llama-3.3-70b-versatile was retired by Groq on 2026-08-16;
+#: gpt-oss-120b is their recommended replacement.)
+INTENT_MODEL = "openai/gpt-oss-120b"
 
 #: Max diff characters fed to the model — keeps prompts bounded and cheap.
 MAX_PROMPT_DIFF_CHARS = 12_000
