@@ -1,0 +1,16 @@
+name: keep-alive
+
+# ponytail: Render free tier sleeps after inactivity. A 5-minute ping on
+# /health keeps the flagship demo warm. Only service that gets this.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping PRISM backend health
+        run: curl -fsS --max-time 60 https://prism-api-te0e.onrender.com/health
