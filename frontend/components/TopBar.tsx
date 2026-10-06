@@ -1,8 +1,8 @@
 "use client";
 
-import { Command, GitBranch, Loader2, Search } from "lucide-react";
-import { useState } from "react";
+import { GitBranch, Loader2, Search } from "lucide-react";
 import { usePrismStore } from "@/lib/store";
+import CommandPalette from "@/components/CommandPalette";
 
 /** Top bar: wordmark, repo URL input + Explore, command palette trigger. */
 export default function TopBar() {
@@ -11,7 +11,6 @@ export default function TopBar() {
   const exploreRepo = usePrismStore((s) => s.exploreRepo);
   const ingestStatus = usePrismStore((s) => s.ingestStatus);
   const ingestError = usePrismStore((s) => s.ingestError);
-  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const ingesting = ingestStatus === "ingesting";
 
@@ -64,33 +63,7 @@ export default function TopBar() {
       )}
 
       <div className="ml-auto">
-        <button
-          className="btn-quiet"
-          onClick={() => setPaletteOpen((v) => !v)}
-          aria-label="Command palette"
-        >
-          <Command size={14} />
-          <span className="kbd">⌘K</span>
-        </button>
-        {paletteOpen && (
-          <div className="absolute right-3 top-14 z-10 w-72 rounded border hairline bg-elevated p-2 shadow-none">
-            <p className="px-2 py-1 text-xs text-ink-faint">Keyboard</p>
-            <ul className="space-y-1 text-sm">
-              <li className="flex justify-between rounded px-2 py-1 hover:bg-surface">
-                <span>Command palette</span>
-                <span className="kbd">⌘K</span>
-              </li>
-              <li className="flex justify-between rounded px-2 py-1 hover:bg-surface">
-                <span>Select commit</span>
-                <span className="kbd">↑ ↓</span>
-              </li>
-              <li className="flex justify-between rounded px-2 py-1 hover:bg-surface">
-                <span>Deselect</span>
-                <span className="kbd">Esc</span>
-              </li>
-            </ul>
-          </div>
-        )}
+        <CommandPalette />
       </div>
     </header>
   );

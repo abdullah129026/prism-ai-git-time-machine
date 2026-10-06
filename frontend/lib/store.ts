@@ -11,6 +11,32 @@ export type IngestStatus = "idle" | "ingesting" | "ready" | "error";
 export type TimelineStatus = "idle" | "loading" | "ready" | "error";
 export type ViewMode = "timeline" | "city";
 
+/** Live progress of a running ingest job: human stage + commits parsed. */
+export interface IngestProgress {
+  stage: string;
+  commits: number;
+}
+
+/**
+ * Does a timeline node match the active filters?
+ * # ponytail: linear substring scan, fine under a few thousand commits;
+ * index it if repos ever grow past that.
+ */
+export function commitMatchesFilter(
+  node: { message: string; author: string; sha: string },
+  query: string,
+  author: string | null,
+): boolean {
+  if (author && node.author !== author) return false;
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    node.message.toLowerCase().includes(q) ||
+    node.author.toLowerCase().includes(q) ||
+    node.sha.toLowerCase().startsWith(q)
+  );
+}
+
 interface PrismState {
   /** Repo URL typed into the top bar / empty state. */
   repoUrl: string;
@@ -21,16 +47,24 @@ interface PrismState {
   /** Ingest job lifecycle for the URL currently being explored. */
   ingestStatus: IngestStatus;
   ingestError: string | null;
+  /** Progress detail while ingesting (null when not ingesting). */
+  ingestProgress: IngestProgress | null;
   /** 3D-ready timeline data for the current repo. */
   timeline: TimelineResponse | null;
   timelineStatus: TimelineStatus;
   timelineError: string | null;
   /** Which 3D view the scene shows. */
   viewMode: ViewMode;
+  /** Timeline filters: free-text query + author. Dim non-matches. */
+  filterQuery: string;
+  filterAuthor: string | null;
   setRepoUrl: (url: string) => void;
   setRepoId: (id: string | null) => void;
   selectCommit: (sha: string | null) => void;
   setViewMode: (mode: ViewMode) => void;
+  setFilterQuery: (query: string) => void;
+  setFilterAuthor: (author: string | null) => void;
+  clearFilters: () => void;
   /** Submit the URL, poll the ingest job, set repoId on success. */
   exploreRepo: (url: string) => Promise<void>;
   /** Fetch timeline JSON for the 3D scene. */
@@ -54,14 +88,20 @@ export const usePrismStore = create<PrismState>((set, get) => ({
   selectedCommit: null,
   ingestStatus: "idle",
   ingestError: null,
+  ingestProgress: null,
   timeline: null,
   timelineStatus: "idle",
   timelineError: null,
   viewMode: "timeline",
+  filterQuery: "",
+  filterAuthor: null,
   setRepoUrl: (repoUrl) => set({ repoUrl }),
   setRepoId: (repoId) => set({ repoId }),
   selectCommit: (selectedCommit) => set({ selectedCommit }),
   setViewMode: (viewMode) => set({ viewMode }),
+  setFilterQuery: (filterQuery) => set({ filterQuery }),
+  setFilterAuthor: (filterAuthor) => set({ filterAuthor }),
+  clearFilters: () => set({ filterQuery: "", filterAuthor: null }),
   exploreRepo: async (url: string) => {
     const trimmed = url.trim();
     if (!trimmed) {
@@ -74,11 +114,14 @@ export const usePrismStore = create<PrismState>((set, get) => ({
     set({
       ingestStatus: "ingesting",
       ingestError: null,
+      ingestProgress: null,
       repoId: null,
       selectedCommit: null,
       timeline: null,
       timelineStatus: "idle",
       timelineError: null,
+      filterQuery: "",
+      filterAuthor: null,
     });
     try {
       const { job_id } = await ingestRepo(trimmed);
@@ -86,11 +129,18 @@ export const usePrismStore = create<PrismState>((set, get) => ({
       for (;;) {
         await sleep(POLL_INTERVAL_MS);
         const job = await fetchJobStatus(job_id);
+        if (get().ingestStatus !== "ingesting") return; // superseded
+        set({
+          ingestProgress: {
+            stage: job.stage_detail || job.status,
+            commits: job.commits_parsed,
+          },
+        });
         if (job.status === "done") {
           if (!job.repo_id) {
             throw new Error("ingest finished without a repo id");
           }
-          set({ repoId: job.repo_id, ingestStatus: "ready" });
+          set({ repoId: job.repo_id, ingestStatus: "ready", ingestProgress: null });
           return;
         }
         if (job.status === "failed") {
@@ -101,7 +151,11 @@ export const usePrismStore = create<PrismState>((set, get) => ({
         }
       }
     } catch (err) {
-      set({ ingestStatus: "error", ingestError: errorMessage(err) });
+      set({
+        ingestStatus: "error",
+        ingestError: errorMessage(err),
+        ingestProgress: null,
+      });
     }
   },
   loadTimeline: async (repoId: string) => {
@@ -127,9 +181,12 @@ export const usePrismStore = create<PrismState>((set, get) => ({
       selectedCommit: null,
       ingestStatus: "idle",
       ingestError: null,
+      ingestProgress: null,
       timeline: null,
       timelineStatus: "idle",
       timelineError: null,
       viewMode: "timeline",
+      filterQuery: "",
+      filterAuthor: null,
     }),
 }));
