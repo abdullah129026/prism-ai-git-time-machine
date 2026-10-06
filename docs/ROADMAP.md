@@ -39,9 +39,9 @@
 ## Week 3 — Harden & Ship
 
 **Days 15–17: Polish**
-- [ ] Search, filters, keyboard shortcuts
-- [ ] Loading/error/empty states
-- [ ] Mobile fallback (2D timeline)
+- [x] Search, filters, keyboard shortcuts (⌘K palette with commit search + actions, query/author filters that dim non-matching 3D nodes, "/" focuses filter, ↑↓/Esc kept)
+- [x] Loading/error/empty states (ingest progress surfaced from job polling, error boundary around the scene with retry, actionable empty states)
+- [x] Mobile fallback (2D timeline) (SVG 2D commit graph on small screens / coarse pointers / no WebGL, same selection + filter dimming)
 
 **Days 18–19: Deploy**
 - [ ] Frontend → Vercel, Backend → Railway
