@@ -90,7 +90,7 @@ export interface IngestJobResponse {
 export interface JobStatus {
   job_id: string;
   repo_id: string;
-  /** queued | cloning | parsing | done | failed */
+  /** queued | cloning | parsing | ready | error - matches backend jobs.py */
   status: string;
   stage_detail: string;
   commits_parsed: number;

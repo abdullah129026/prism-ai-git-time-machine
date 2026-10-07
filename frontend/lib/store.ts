@@ -136,14 +136,14 @@ export const usePrismStore = create<PrismState>((set, get) => ({
             commits: job.commits_parsed,
           },
         });
-        if (job.status === "done") {
+        if (job.status === "ready") {
           if (!job.repo_id) {
             throw new Error("ingest finished without a repo id");
           }
           set({ repoId: job.repo_id, ingestStatus: "ready", ingestProgress: null });
           return;
         }
-        if (job.status === "failed") {
+        if (job.status === "error") {
           throw new Error(job.error || "ingest job failed");
         }
         if (Date.now() > deadline) {
