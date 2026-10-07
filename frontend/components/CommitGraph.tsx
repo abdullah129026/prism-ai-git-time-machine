@@ -185,6 +185,7 @@ export default function CommitGraph({
             hoveredNode.z,
           ]}
           zIndexRange={[20, 0]}
+          style={{ pointerEvents: "none" }}
         >
           <div className="pointer-events-none w-64 -translate-x-1/2 -translate-y-full rounded border hairline bg-elevated p-2.5">
             <p className="font-mono text-xs text-accent">

@@ -124,6 +124,7 @@ export default function CityView({ files, nodes, selectedSha, onSelect }: CityVi
         <Html
           position={[hoveredB.x, hoveredB.h + 0.8, hoveredB.z]}
           zIndexRange={[20, 0]}
+          style={{ pointerEvents: "none" }}
         >
           <div className="pointer-events-none w-64 -translate-x-1/2 -translate-y-full rounded border hairline bg-elevated p-2.5">
             <p className="truncate font-mono text-xs text-ink">
