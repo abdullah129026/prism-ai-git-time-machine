@@ -136,6 +136,7 @@ export interface TimelineNode {
   additions: number;
   deletions: number;
   files_changed: number;
+  files: string[];
 }
 
 export interface TimelineEdge {

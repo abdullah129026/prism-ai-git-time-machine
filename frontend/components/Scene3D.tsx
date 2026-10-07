@@ -131,7 +131,12 @@ export default function Scene3D({
           onSelect={onSelect}
         />
       ) : (
-        <CityView files={timeline.file_churn} />
+        <CityView
+          files={timeline.file_churn}
+          nodes={timeline.nodes}
+          selectedSha={selectedSha}
+          onSelect={onSelect}
+        />
       )}
 
       <CameraRig focus={viewMode === "timeline" ? focus : null} />

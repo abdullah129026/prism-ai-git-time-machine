@@ -4,22 +4,29 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Html } from "@react-three/drei";
 
-import type { FileChurn } from "@/lib/api";
+import type { FileChurn, TimelineNode } from "@/lib/api";
 import { layoutCity } from "./scene/layout";
 
 interface CityViewProps {
   files: FileChurn[];
+  nodes: TimelineNode[];
+  selectedSha: string | null;
+  onSelect: (sha: string | null) => void;
 }
 
 const DARK = new THREE.Color("#22262b");
 const LIGHT = new THREE.Color("#a9b0b9");
+const ACCENT = "#5E6AD2";
 
 /**
  * File "buildings": each of the top churned files is an extruded box —
  * height = log-scaled churn, footprint grows with commit count, shade runs
  * monochrome from dark (quiet) to light (hot).
+ *
+ * Clicking a building selects the newest commit touching that file, so the
+ * Inspector shows its intent/risk just like a timeline node click.
  */
-export default function CityView({ files }: CityViewProps) {
+export default function CityView({ files, nodes, selectedSha, onSelect }: CityViewProps) {
   const layout = useMemo(() => layoutCity(files), [files]);
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const [hovered, setHovered] = useState<number | null>(null);
@@ -41,6 +48,21 @@ export default function CityView({ files }: CityViewProps) {
 
   const hoveredB = hovered != null ? layout.buildings[hovered] : undefined;
 
+  // nodes arrive newest-first, so the first commit seen per path is its latest
+  const latestShaByPath = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const n of nodes) {
+      for (const f of n.files ?? []) {
+        if (!map.has(f)) map.set(f, n.sha);
+      }
+    }
+    return map;
+  }, [nodes]);
+
+  const selectedB = selectedSha
+    ? layout.buildings.find((b) => latestShaByPath.get(b.path) === selectedSha)
+    : undefined;
+
   return (
     <group>
       {/* Ground slab */}
@@ -60,6 +82,14 @@ export default function CityView({ files }: CityViewProps) {
         ref={meshRef}
         args={[undefined, undefined, layout.buildings.length]}
         frustumCulled={false}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (e.instanceId != null) {
+            const sha = latestShaByPath.get(
+              layout.buildings[e.instanceId].path);
+            if (sha) onSelect(sha);
+          }
+        }}
         onPointerMove={(e) => {
           e.stopPropagation();
           setHovered(e.instanceId ?? null);
@@ -74,6 +104,19 @@ export default function CityView({ files }: CityViewProps) {
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial roughness={0.7} metalness={0.1} />
       </instancedMesh>
+
+      {/* Selection highlight */}
+      {selectedB && (
+        <mesh position={[selectedB.x, selectedB.h / 2, selectedB.z]}>
+          <boxGeometry args={[selectedB.w + 0.25, selectedB.h + 0.25, selectedB.d + 0.25]} />
+          <meshBasicMaterial
+            color={ACCENT}
+            wireframe
+            transparent
+            opacity={0.9}
+          />
+        </mesh>
+      )}
 
       {/* Hover tooltip — bottom edge anchored above the bar so the box
           never covers it (keeps the bar clickable) */}
