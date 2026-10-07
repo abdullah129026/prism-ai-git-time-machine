@@ -163,3 +163,19 @@ def test_clone_repo_copies_local_path(tmp_path: Path, sample_repo: Path):
 def test_clone_repo_refuses_existing_dest(tmp_path: Path, sample_repo: Path):
     with pytest.raises(FileExistsError):
         git_parser.clone_repo(str(sample_repo), sample_repo)
+
+
+def test_clone_repo_passes_depth_to_git(tmp_path: Path, sample_repo: Path):
+    dest = tmp_path / "shallow"
+    with patch.object(git_parser.Repo, "clone_from") as mock_clone:
+        git_parser.clone_repo(str(sample_repo), dest, depth=7)
+    _, kwargs = mock_clone.call_args
+    assert kwargs["depth"] == 7
+
+
+def test_clone_repo_without_depth_omits_flag(tmp_path: Path, sample_repo: Path):
+    dest = tmp_path / "full"
+    with patch.object(git_parser.Repo, "clone_from") as mock_clone:
+        git_parser.clone_repo(str(sample_repo), dest)
+    _, kwargs = mock_clone.call_args
+    assert "depth" not in kwargs

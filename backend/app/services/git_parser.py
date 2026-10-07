@@ -113,15 +113,24 @@ def _require_public_host(url: str) -> None:
                 f"repo host resolves to a non-public IP: {host}")
 
 
-def clone_repo(url: str, dest: Path, timeout: int = 300) -> Path:
-    """Clone a repo URL to dest. Raises on invalid URL or clone failure."""
+def clone_repo(url: str, dest: Path, timeout: int = 300,
+               depth: int | None = None) -> Path:
+    """Clone a repo URL to dest. Raises on invalid URL or clone failure.
+
+    depth caps the clone to the newest N commits — PRISM only ever parses
+    the newest max_commits, so a full clone just wastes disk and bandwidth
+    (and lets a huge repo exhaust the disk).
+    """
     url = validate_repo_url(url)
     dest = Path(dest)
     if dest.exists():
         raise FileExistsError(f"destination already exists: {dest}")
     dest.parent.mkdir(parents=True, exist_ok=True)
+    clone_kwargs: dict = {"kill_after_timeout": timeout}
+    if depth is not None:
+        clone_kwargs["depth"] = max(1, depth)
     try:
-        Repo.clone_from(url, str(dest), kill_after_timeout=timeout)
+        Repo.clone_from(url, str(dest), **clone_kwargs)
     except GitCommandError as exc:
         raise RuntimeError(f"clone failed for {url}: {exc.stderr or exc}") from exc
     return dest

@@ -162,7 +162,8 @@ def run_ingest(job_id: str) -> None:
         store.update(job_id, status="cloning",
                      stage_detail=f"cloning {job.repo_url}")
         git_parser.clone_repo(job.repo_url, dest,
-                              timeout=settings.clone_timeout_seconds)
+                              timeout=settings.clone_timeout_seconds,
+                              depth=job.max_commits)
         store.update(job_id, status="parsing",
                      stage_detail="walking commit history")
         commits = git_parser.walk_history(dest, max_commits=job.max_commits)
