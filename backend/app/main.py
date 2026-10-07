@@ -10,6 +10,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
+from app.middleware import (
+    HostGuardMiddleware,
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.routers import analyze, repos
 from app.services import git_parser
 from app.services.jobs import run_ingest, store
@@ -78,6 +83,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Added last so they run first (outermost): reject bad hosts, then rate
+# limit, then stamp security headers on the way out.
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    RateLimitMiddleware,
+    ingest_per_hour=settings.rate_limit_ingest_per_hour,
+    intent_per_hour=settings.rate_limit_intent_per_hour,
+)
+app.add_middleware(
+    HostGuardMiddleware, allowed_hosts=settings.trusted_host_list)
 
 app.include_router(repos.router, prefix="/repos", tags=["repos"])
 app.include_router(analyze.router, prefix="/repos", tags=["analyze"])
