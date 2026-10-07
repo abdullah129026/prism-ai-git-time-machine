@@ -16,6 +16,8 @@ jobs:
       - run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
       - run: cd backend && python -m pytest tests -q
       - run: python -m compileall backend/app
+      - run: pip install pip-audit
+      - run: python -m pip_audit -r backend/requirements.txt -r backend/requirements-dev.txt
 
   frontend:
     runs-on: ubuntu-latest
@@ -25,3 +27,7 @@ jobs:
         with:
           node-version: 20
       - run: cd frontend && npm ci && npm run typecheck
+      # non-blocking until the baseline is verified clean: surfaces new
+      # advisories in the log without failing the build
+      - run: cd frontend && npm audit --audit-level=high
+        continue-on-error: true
