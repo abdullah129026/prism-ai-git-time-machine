@@ -18,7 +18,7 @@ import json
 from app.config import get_settings
 from app.services import git_parser
 from app.services.git_parser import ParsedCommit
-from app.services.intent import CommitIntent
+from app.services.intent import CommitIntent, INTENT_CACHE_VERSION
 
 
 def _now() -> str:
@@ -52,16 +52,29 @@ class JobStore:
         return f"{repo_id}:{sha}"
 
     def get_intent(self, repo_id: str, sha: str) -> CommitIntent | None:
-        """Return a cached intent, checking memory then disk."""
+        """Return a cached intent, checking memory then disk.
+
+        Entries from an older prompt format are treated as a miss (and
+        dropped) so analysis is never served from a stale schema.
+        """
         key = self._intent_key(repo_id, sha)
         with self._lock:
             cached = self._intents.get(key)
         if cached is not None:
-            return cached
+            if cached.cache_version == INTENT_CACHE_VERSION:
+                return cached
+            with self._lock:
+                self._intents.pop(key, None)
         disk_path = intent_file(repo_id, sha)
         if disk_path.exists():
             try:
                 data = json.loads(disk_path.read_text())
+                if data.get("cache_version") != INTENT_CACHE_VERSION:
+                    try:
+                        disk_path.unlink()
+                    except OSError:
+                        pass
+                    return None
                 intent = CommitIntent.from_dict(data)
                 with self._lock:
                     self._intents[key] = intent

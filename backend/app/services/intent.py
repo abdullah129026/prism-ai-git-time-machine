@@ -18,6 +18,10 @@ log = logging.getLogger(__name__)
 #: gpt-oss-120b is their recommended replacement.)
 INTENT_MODEL = "openai/gpt-oss-120b"
 
+#: Version of the intent prompt format. Bump this whenever the prompt or the
+#: CommitIntent schema changes — stale cache entries are dropped on read.
+INTENT_CACHE_VERSION = 1
+
 #: Tag fencing raw repo content in prompts. Everything inside is untrusted
 #: third-party data: the model must analyze it, never follow it.
 UNTRUSTED_TAG = "untrusted-commit-data"
@@ -59,6 +63,7 @@ class CommitIntent:
     confidence: float
     model: str = INTENT_MODEL
     generated_at: str = ""
+    cache_version: int = INTENT_CACHE_VERSION
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -73,6 +78,9 @@ class CommitIntent:
             confidence=float(data.get("confidence", 0.0)),
             model=data.get("model", INTENT_MODEL),
             generated_at=data.get("generated_at", ""),
+            # entries cached before versioning have no version — treat as 0
+            # so the reader drops them as stale.
+            cache_version=int(data.get("cache_version", 0)),
         )
 
 

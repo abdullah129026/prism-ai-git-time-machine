@@ -135,3 +135,32 @@ def test_poisoned_commit_message_is_fenced_as_data():
     # ...and nowhere outside it
     outside = user_content[:start] + user_content[end + len(close_tag):]
     assert POISONED_MESSAGE not in outside
+
+
+def test_stale_disk_cache_is_ignored(tmp_path, monkeypatch):
+    import app.services.jobs as jobs_module
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    monkeypatch.setattr(jobs_module, "get_settings", lambda: settings)
+    # pre-versioning entry: no cache_version field at all
+    stale = {"sha": "cafe01", "why": "w", "bug_fixed": None,
+             "risk": "r", "confidence": 0.5}
+    path = tmp_path / "intents" / "repo-stale" / "cafe01.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(stale))
+    assert store.get_intent("repo-stale", "cafe01") is None
+    assert not path.exists()  # stale file cleaned up
+
+
+def test_current_cache_version_round_trip(tmp_path, monkeypatch):
+    import app.services.jobs as jobs_module
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    monkeypatch.setattr(jobs_module, "get_settings", lambda: settings)
+    intent = CommitIntent(sha="fresh01", why="w", bug_fixed=None,
+                          risk="r", confidence=0.7)
+    assert intent.cache_version == intent_module.INTENT_CACHE_VERSION
+    store.set_intent("repo-fresh", "fresh01", intent)
+    cached = store.get_intent("repo-fresh", "fresh01")
+    assert cached is not None
+    assert cached.cache_version == intent_module.INTENT_CACHE_VERSION
