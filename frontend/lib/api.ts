@@ -90,7 +90,7 @@ export interface IngestJobResponse {
 export interface JobStatus {
   job_id: string;
   repo_id: string;
-  /** queued | cloning | parsing | ready | error - matches backend jobs.py */
+  /** queued | cloning | parsing | ready | error — matches backend jobs.py */
   status: string;
   stage_detail: string;
   commits_parsed: number;
@@ -109,6 +109,18 @@ export function ingestRepo(repoUrl: string): Promise<IngestJobResponse> {
 /** Poll the status of an ingest job. */
 export function fetchJobStatus(jobId: string): Promise<JobStatus> {
   return request<JobStatus>(`/repos/${encodeURIComponent(jobId)}`);
+}
+
+export interface DemoStatus {
+  enabled: boolean;
+  repo_id: string | null;
+  /** disabled | seeding | ready */
+  status: string;
+}
+
+/** Pre-loaded demo repo: whether one is configured and its repo id once ready. */
+export function fetchDemoStatus(): Promise<DemoStatus> {
+  return request<DemoStatus>("/repos/demo");
 }
 
 /* ------------------------------------------------------------------ */

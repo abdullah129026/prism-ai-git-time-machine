@@ -1,6 +1,7 @@
 "use client";
 
-import { FolderGit2, Loader2 } from "lucide-react";
+import { useEffect } from "react";
+import { FolderGit2, Loader2, Play } from "lucide-react";
 import { usePrismStore } from "@/lib/store";
 
 /** Actionable empty state: explore a repo URL, or prefill the sample repo. */
@@ -11,6 +12,13 @@ export default function EmptyState() {
   const ingestStatus = usePrismStore((s) => s.ingestStatus);
   const ingestError = usePrismStore((s) => s.ingestError);
   const ingestProgress = usePrismStore((s) => s.ingestProgress);
+  const demoAvailable = usePrismStore((s) => s.demoAvailable);
+  const checkDemo = usePrismStore((s) => s.checkDemo);
+  const loadDemo = usePrismStore((s) => s.loadDemo);
+
+  useEffect(() => {
+    void checkDemo();
+  }, [checkDemo]);
 
   const ingesting = ingestStatus === "ingesting";
 
@@ -51,6 +59,16 @@ export default function EmptyState() {
         >
           Try sample
         </button>
+        {demoAvailable && (
+          <button
+            className="btn-quiet shrink-0"
+            onClick={() => void loadDemo()}
+            disabled={ingesting}
+          >
+            <Play size={14} />
+            Live demo
+          </button>
+        )}
       </div>
       <button
         className="btn-accent"

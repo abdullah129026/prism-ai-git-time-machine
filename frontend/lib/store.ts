@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import {
+  fetchDemoStatus,
   fetchJobStatus,
   fetchTimeline,
   ingestRepo,
@@ -55,6 +56,8 @@ interface PrismState {
   timelineError: string | null;
   /** Which 3D view the scene shows. */
   viewMode: ViewMode;
+  /** Pre-loaded demo repo offered on the empty state (null = not checked yet). */
+  demoAvailable: boolean | null;
   /** Timeline filters: free-text query + author. Dim non-matches. */
   filterQuery: string;
   filterAuthor: string | null;
@@ -67,6 +70,10 @@ interface PrismState {
   clearFilters: () => void;
   /** Submit the URL, poll the ingest job, set repoId on success. */
   exploreRepo: (url: string) => Promise<void>;
+  /** Ask the backend once whether a pre-loaded demo repo exists. */
+  checkDemo: () => Promise<void>;
+  /** Wait for the demo repo to finish seeding, then open it. */
+  loadDemo: () => Promise<void>;
   /** Fetch timeline JSON for the 3D scene. */
   loadTimeline: (repoId: string) => Promise<void>;
   reset: () => void;
@@ -80,6 +87,7 @@ function errorMessage(err: unknown): string {
 }
 
 const POLL_INTERVAL_MS = 1500;
+const DEMO_POLL_INTERVAL_MS = 2500;
 const INGEST_TIMEOUT_MS = 10 * 60 * 1000;
 
 export const usePrismStore = create<PrismState>((set, get) => ({
@@ -95,6 +103,7 @@ export const usePrismStore = create<PrismState>((set, get) => ({
   viewMode: "timeline",
   filterQuery: "",
   filterAuthor: null,
+  demoAvailable: null,
   setRepoUrl: (repoUrl) => set({ repoUrl }),
   setRepoId: (repoId) => set({ repoId }),
   selectCommit: (selectedCommit) => set({ selectedCommit }),
@@ -148,6 +157,56 @@ export const usePrismStore = create<PrismState>((set, get) => ({
         }
         if (Date.now() > deadline) {
           throw new Error("ingest timed out — try again");
+        }
+      }
+    } catch (err) {
+      set({
+        ingestStatus: "error",
+        ingestError: errorMessage(err),
+        ingestProgress: null,
+      });
+    }
+  },
+  checkDemo: async () => {
+    try {
+      const demo = await fetchDemoStatus();
+      set({ demoAvailable: demo.enabled });
+    } catch {
+      set({ demoAvailable: false }); // backend too old or unreachable: hide the button
+    }
+  },
+  loadDemo: async () => {
+    set({
+      ingestStatus: "ingesting",
+      ingestError: null,
+      ingestProgress: { stage: "loading demo repository", commits: 0 },
+      repoId: null,
+      selectedCommit: null,
+      timeline: null,
+      timelineStatus: "idle",
+      timelineError: null,
+      filterQuery: "",
+      filterAuthor: null,
+    });
+    try {
+      const deadline = Date.now() + INGEST_TIMEOUT_MS;
+      for (;;) {
+        await sleep(DEMO_POLL_INTERVAL_MS);
+        const demo = await fetchDemoStatus();
+        if (get().ingestStatus !== "ingesting") return; // superseded
+        set({
+          ingestProgress: {
+            stage: demo.status === "ready" ? "demo ready" : "seeding demo repository",
+            commits: 0,
+          },
+        });
+        if (demo.repo_id) {
+          // TimelineCanvas picks up the repo id and loads the timeline.
+          set({ repoId: demo.repo_id, ingestStatus: "ready", ingestProgress: null });
+          return;
+        }
+        if (Date.now() > deadline) {
+          throw new Error("demo is taking too long — try again");
         }
       }
     } catch (err) {
