@@ -4,17 +4,15 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - QDRANT_URL=http://qdrant:6333
-    depends_on:
-      - qdrant
-
-  qdrant:
-    image: qdrant/qdrant:v1.12.1
-    ports:
-      - "6333:6333"
+      # Required for per-commit intent analysis; the API still serves without it.
+      - PRISM_GROQ_API_KEY=${PRISM_GROQ_API_KEY:-}
+      - PRISM_CORS_ORIGINS=http://localhost:3000
+      # Persisted so ingested repos survive restarts (backend default is /tmp).
+      - PRISM_DATA_DIR=/data
+      # Pre-loads a demo repo on first start; empty disables it.
+      - PRISM_DEMO_REPO=${PRISM_DEMO_REPO:-https://github.com/abdullah129026/prism-ai-git-time-machine}
     volumes:
-      - qdrant_data:/qdrant/storage
+      - prism_data:/data
 
 volumes:
-  qdrant_data:
+  prism_data:
