@@ -23,6 +23,7 @@ class TimelineNode(BaseModel):
     additions: int
     deletions: int
     files_changed: int
+    files: list[str] = []  # paths touched — lets views map files back to commits
 
 
 class TimelineEdge(BaseModel):
@@ -71,6 +72,7 @@ def timeline(
             additions=c.additions,
             deletions=c.deletions,
             files_changed=len(c.files),
+            files=[f.path for f in c.files],
         )
         for c in commits
     ]

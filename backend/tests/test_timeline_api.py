@@ -58,6 +58,15 @@ def test_timeline_returns_nodes_edges_and_churn(repo_id: str):
     churn = {f["path"]: f for f in tl["file_churn"]}
     assert churn["app.py"]["commits"] == 2
     assert churn["hot.py"]["commits"] == 1
+
+
+def test_timeline_nodes_carry_file_paths(repo_id: str):
+    tl = client.get(f"/repos/{repo_id}/timeline").json()
+    by_sha = {n["sha"]: n for n in tl["nodes"]}
+    newest = tl["nodes"][0]
+    # newest commit touched both files; oldest only app.py
+    assert sorted(by_sha[newest["sha"]]["files"]) == ["app.py", "hot.py"]
+    assert by_sha[tl["nodes"][1]["sha"]]["files"] == ["app.py"]
     assert tl["file_churn"][0]["path"] == "app.py"
 
 
