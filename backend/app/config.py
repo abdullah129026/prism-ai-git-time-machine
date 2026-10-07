@@ -23,6 +23,22 @@ class Settings(BaseSettings):
     max_commits: int = 2000
     clone_timeout_seconds: int = 300
 
+    # Repo URL policy. When False (production default) only public http(s)
+    # URLs are accepted: file://, ssh/scp-like and bare local paths are
+    # rejected, and http(s) hosts must resolve to public IPs (SSRF guard).
+    # Self-hosters and tests can opt back in with PRISM_ALLOW_LOCAL_REPOS=true.
+    allow_local_repos: bool = False
+
+    # Per-IP rate limits (requests/hour) on the expensive endpoints.
+    rate_limit_ingest_per_hour: int = 20
+    rate_limit_intent_per_hour: int = 120
+
+    # Trusted Host headers (comma-separated). Health probes are exempt.
+    trusted_hosts: str = (
+        "localhost,127.0.0.1,testserver,"
+        "prism-api-te0e.onrender.com,api.fluxyai.codes"
+    )
+
     # Downstream services.
     groq_api_key: str = ""
     qdrant_url: str = "http://localhost:6333"
@@ -33,6 +49,11 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def trusted_host_list(self) -> list[str]:
+        return [h.strip().lower() for h in self.trusted_hosts.split(",")
+                if h.strip()]
 
 
 @lru_cache

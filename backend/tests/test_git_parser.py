@@ -1,7 +1,9 @@
 """Unit tests for git history parsing (clone, walk, diff)."""
 
+import socket
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -91,16 +93,64 @@ def test_diff_for_unknown_sha_raises(sample_repo: Path):
 
 
 def test_validate_repo_url_accepts_local_path(sample_repo: Path):
-    assert git_parser.validate_repo_url(str(sample_repo)) == str(sample_repo)
+    assert (git_parser.validate_repo_url(str(sample_repo), allow_local=True)
+            == str(sample_repo))
 
 
 def test_validate_repo_url_rejects_garbage():
     with pytest.raises(ValueError):
-        git_parser.validate_repo_url("not a url ;;")
+        git_parser.validate_repo_url("not a url ;;", allow_local=True)
     with pytest.raises(ValueError):
-        git_parser.validate_repo_url("ftp://example.com/x.git")
+        git_parser.validate_repo_url("ftp://example.com/x.git",
+                                       allow_local=True)
     with pytest.raises(ValueError):
-        git_parser.validate_repo_url("")
+        git_parser.validate_repo_url("", allow_local=True)
+
+
+def test_validate_repo_url_rejects_file_scheme_by_default():
+    with pytest.raises(ValueError, match="disabled"):
+        git_parser.validate_repo_url("file:///etc/passwd", allow_local=False)
+
+
+def test_validate_repo_url_rejects_ssh_by_default():
+    with pytest.raises(ValueError, match="disabled"):
+        git_parser.validate_repo_url("git@github.com:owner/repo.git",
+                                       allow_local=False)
+    with pytest.raises(ValueError, match="disabled"):
+        git_parser.validate_repo_url("ssh://git@github.com/owner/repo.git",
+                                       allow_local=False)
+
+
+def test_validate_repo_url_rejects_local_path_by_default(sample_repo: Path):
+    with pytest.raises(ValueError, match="disabled"):
+        git_parser.validate_repo_url(str(sample_repo), allow_local=False)
+
+
+@pytest.mark.parametrize("url", [
+    "http://127.0.0.1/x.git",
+    "http://10.0.0.1/x.git",
+    "http://169.254.169.254/latest/meta-data/",
+    "https://[::1]/x.git",
+])
+def test_validate_repo_url_rejects_non_public_hosts(url: str):
+    # literal IPs need no DNS, so this also runs offline
+    with pytest.raises(ValueError, match="non-public"):
+        git_parser.validate_repo_url(url, allow_local=False)
+
+
+def test_validate_repo_url_accepts_public_https():
+    fake_info = [(None, None, None, None, ("140.82.121.4", 0))]
+    with patch("socket.getaddrinfo", return_value=fake_info):
+        url = "https://github.com/owner/repo.git"
+        assert git_parser.validate_repo_url(url, allow_local=False) == url
+
+
+def test_validate_repo_url_rejects_unresolvable_host():
+    with patch("socket.getaddrinfo",
+               side_effect=socket.gaierror("nope")):
+        with pytest.raises(ValueError, match="could not resolve"):
+            git_parser.validate_repo_url("https://nonexistent.invalid/x.git",
+                                           allow_local=False)
 
 
 def test_clone_repo_copies_local_path(tmp_path: Path, sample_repo: Path):

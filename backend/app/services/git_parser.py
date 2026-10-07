@@ -6,13 +6,17 @@ large repos are parsed without one subprocess per commit.
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
+
+from app.config import get_settings
 
 #: Hard cap on diff text returned per commit — keeps intent prompts bounded.
 MAX_DIFF_CHARS = 200_000
@@ -53,12 +57,16 @@ class ParsedCommit:
         return sum(f.deletions for f in self.files)
 
 
-def validate_repo_url(url: str) -> str:
+def validate_repo_url(url: str, *, allow_local: bool | None = None) -> str:
     """Return a normalized repo URL/path, or raise ValueError.
 
-    Accepts https/http/git/ssh/file URLs, scp-like `git@host:path` syntax,
-    and existing local paths (handy for tests and self-hosting).
+    By default only public http(s) URLs are accepted: file://, ssh/scp-like
+    and bare local paths are rejected, and the host must resolve to public
+    IPs (SSRF guard). Pass allow_local=True — or set PRISM_ALLOW_LOCAL_REPOS
+    — for self-hosting and tests.
     """
+    if allow_local is None:
+        allow_local = get_settings().allow_local_repos
     url = (url or "").strip()
     if not url:
         raise ValueError("repo_url must not be empty")
@@ -66,13 +74,43 @@ def validate_repo_url(url: str) -> str:
     if scheme:
         if scheme not in _ALLOWED_SCHEMES:
             raise ValueError(f"unsupported URL scheme: {scheme}")
+        if scheme in ("http", "https"):
+            _require_public_host(url)
+            return url
+        if not allow_local:
+            raise ValueError(f"{scheme} URLs are disabled on this server")
         return url
     if _SCP_LIKE.match(url):
+        if not allow_local:
+            raise ValueError("ssh-style repo URLs are disabled on this server")
         return url
+    if not allow_local:
+        raise ValueError("local repo paths are disabled on this server")
     path = Path(url).expanduser()
     if path.exists():
         return str(path)
     raise ValueError(f"not a valid repo URL or local path: {url}")
+
+
+def _require_public_host(url: str) -> None:
+    """Reject URLs whose host resolves to a non-public IP.
+
+    Blocks SSRF probes at cloud metadata endpoints (169.254.169.254),
+    loopback, and other private ranges before git ever dials out.
+    """
+    host = urlparse(url).hostname or ""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as exc:
+        raise ValueError(f"could not resolve repo host: {host}") from exc
+    ips = {info[4][0] for info in infos}
+    if not ips:
+        raise ValueError(f"could not resolve repo host: {host}")
+    for ip in ips:
+        # ponytail: literal parse, no DNS needed when the host is already an IP
+        if not ipaddress.ip_address(ip).is_global:
+            raise ValueError(
+                f"repo host resolves to a non-public IP: {host}")
 
 
 def clone_repo(url: str, dest: Path, timeout: int = 300) -> Path:
