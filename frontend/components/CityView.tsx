@@ -75,14 +75,14 @@ export default function CityView({ files }: CityViewProps) {
         <meshStandardMaterial roughness={0.7} metalness={0.1} />
       </instancedMesh>
 
-      {/* Hover tooltip */}
+      {/* Hover tooltip — bottom edge anchored above the bar so the box
+          never covers it (keeps the bar clickable) */}
       {hoveredB && (
         <Html
           position={[hoveredB.x, hoveredB.h + 0.8, hoveredB.z]}
-          center
           zIndexRange={[20, 0]}
         >
-          <div className="pointer-events-none w-64 rounded border hairline bg-elevated p-2.5">
+          <div className="pointer-events-none w-64 -translate-x-1/2 -translate-y-full rounded border hairline bg-elevated p-2.5">
             <p className="truncate font-mono text-xs text-ink">
               {hoveredB.path}
             </p>

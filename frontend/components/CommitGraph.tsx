@@ -175,7 +175,8 @@ export default function CommitGraph({
         </mesh>
       )}
 
-      {/* Hover tooltip */}
+      {/* Hover tooltip — bottom edge anchored above the node so the box
+          never covers it (keeps the node clickable) */}
       {hoveredNode && hoveredMeta && (
         <Html
           position={[
@@ -183,10 +184,9 @@ export default function CommitGraph({
             hoveredNode.y + hoveredNode.radius + 0.9,
             hoveredNode.z,
           ]}
-          center
           zIndexRange={[20, 0]}
         >
-          <div className="pointer-events-none w-64 rounded border hairline bg-elevated p-2.5">
+          <div className="pointer-events-none w-64 -translate-x-1/2 -translate-y-full rounded border hairline bg-elevated p-2.5">
             <p className="font-mono text-xs text-accent">
               {hoveredMeta.sha.slice(0, 7)}
             </p>
