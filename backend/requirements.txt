@@ -1,8 +1,8 @@
-fastapi==0.115.6
+fastapi==0.142.2
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
-GitPython==3.1.44
+GitPython==3.1.62
 tree-sitter==0.26.0
 tree-sitter-python==0.25.0
 tree-sitter-javascript==0.25.0
@@ -10,4 +10,4 @@ tree-sitter-typescript==0.23.2
 qdrant-client==1.12.1
 groq==0.13.1
 httpx==0.28.1
-python-multipart==0.0.20
+python-multipart==0.0.31
