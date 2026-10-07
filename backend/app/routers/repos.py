@@ -1,9 +1,11 @@
 """Repo ingestion routes: submit a URL, track parsing jobs."""
 
+import json
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.services import git_parser
 from app.services.jobs import run_ingest, store
 
@@ -39,6 +41,34 @@ def ingest_repo(body: IngestRequest, background: BackgroundTasks) -> IngestRespo
     job = store.create(repo_url, min(body.max_commits, settings.max_commits))
     background.add_task(run_ingest, job.job_id)
     return IngestResponse(job_id=job.job_id, status=job.status)
+
+
+class DemoResponse(BaseModel):
+    enabled: bool
+    repo_id: str | None = None
+    status: str  # disabled | seeding | ready
+
+
+def _demo_repo_id(cfg: Settings) -> str | None:
+    marker = cfg.data_dir / "demo.json"
+    if not marker.exists():
+        return None
+    try:
+        return json.loads(marker.read_text()).get("repo_id")
+    except (OSError, ValueError):
+        return None
+
+
+# Registered before /{job_id} so "demo" isn't captured as a job id.
+@router.get("/demo", response_model=DemoResponse)
+def demo_status() -> DemoResponse:
+    cfg = get_settings()
+    if not cfg.demo_repo.strip():
+        return DemoResponse(enabled=False, status="disabled")
+    repo_id = _demo_repo_id(cfg)
+    if repo_id is not None and store.get_repo(repo_id) is not None:
+        return DemoResponse(enabled=True, repo_id=repo_id, status="ready")
+    return DemoResponse(enabled=True, status="seeding")
 
 
 @router.get("/{job_id}", response_model=JobStatusResponse)

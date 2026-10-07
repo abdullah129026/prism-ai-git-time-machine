@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     qdrant_url: str = "http://localhost:6333"
 
+    # Pre-loaded demo repo, ingested once on startup. Empty disables it.
+    demo_repo: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
