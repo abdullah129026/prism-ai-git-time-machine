@@ -1,0 +1,19 @@
+# Render Blueprint for the PRISM backend.
+# Live service: https://prism-api-te0e.onrender.com (Docker, Singapore, free tier).
+# Apply once from the repo root: `render blueprint launch` or connect the repo
+# in the Render dashboard and let it pick up this file.
+services:
+  - type: web
+    name: prism-api
+    runtime: docker
+    rootDir: backend
+    region: singapore
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PRISM_GROQ_API_KEY
+        sync: false # secret — set in the Render dashboard, never in the repo
+      - key: PRISM_CORS_ORIGINS
+        value: http://localhost:3000 # replace with the Vercel frontend URL after it deploys
+      - key: PRISM_DEMO_REPO
+        value: https://github.com/abdullah129026/prism-ai-git-time-machine
