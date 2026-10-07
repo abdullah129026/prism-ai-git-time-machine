@@ -25,7 +25,7 @@ time in an interactive 3D timeline.
 | Frontend | Next.js, React Three Fiber, TypeScript |
 | Backend  | FastAPI, GitPython, Tree-sitter |
 | AI       | Groq (LLM inference), Qdrant (semantic code search) |
-| Deploy   | Vercel (frontend), Railway (backend), Docker |
+| Deploy   | Vercel (frontend), Render (backend), Docker |
 
 ## Quick start
 
@@ -46,6 +46,21 @@ Or with Docker:
 ```bash
 docker compose up --build
 ```
+
+Set `PRISM_GROQ_API_KEY` in your shell (or a `.env` file) for commit-intent
+analysis; `PRISM_DEMO_REPO` pre-loads a demo repository on first start.
+
+## Deployment
+
+**Backend (live):** Render web service `prism-api` (Docker, Singapore, free tier) —
+https://prism-api-te0e.onrender.com. Deploys from `main`; the `render.yaml`
+blueprint in the repo pins the same config. A GitHub Actions workflow pings
+`/health` every 5 minutes to keep the free tier warm.
+
+**Frontend:** import the repo in Vercel with the Next.js preset and set
+`NEXT_PUBLIC_API_URL` to the backend URL *before* deploying (it is inlined at
+build time). After the frontend URL is known, set `PRISM_CORS_ORIGINS` on the
+backend to that domain.
 
 ## Roadmap
 

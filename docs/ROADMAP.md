@@ -44,9 +44,10 @@
 - [x] Mobile fallback (2D timeline) (SVG 2D commit graph on small screens / coarse pointers / no WebGL, same selection + filter dimming)
 
 **Days 18–19: Deploy**
-- [ ] Frontend → Vercel, Backend → Railway
-- [ ] Docker Compose for self-host
-- [ ] Demo repo pre-loaded
+- [x] Backend → Render (live: https://prism-api-te0e.onrender.com — Docker, Singapore, free tier; keep-alive cron pings /health every 5 min; `render.yaml` blueprint in repo)
+- [ ] Frontend → Vercel (needs the Vercel repo import: set NEXT_PUBLIC_API_URL to the Render URL before deploying, then set PRISM_CORS_ORIGINS to the Vercel domain)
+- [x] Docker Compose for self-host (PRISM_ env prefixes fixed, decorative Qdrant sidecar dropped, persistent /data volume)
+- [x] Demo repo pre-loaded (PRISM_DEMO_REPO ingested on startup, GET /repos/demo status, "Live demo" button in the empty state)
 
 **Days 20–21: Launch**
 - [ ] Demo video, README polish
