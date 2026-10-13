@@ -4,6 +4,11 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ??
   "http://localhost:8000";
 
+// Optional: route API traffic through the API Contract Firewall proxy. When
+// set, every request carries the service key the proxy uses to pick the
+// origin. Unset by default so local dev against the backend keeps working.
+const ACF_API_KEY = process.env.NEXT_PUBLIC_ACF_API_KEY;
+
 export interface CommitSummary {
   sha: string;
   message: string;
@@ -41,7 +46,9 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init);
+  const headers = new Headers(init?.headers);
+  if (ACF_API_KEY) headers.set("x-api-key", ACF_API_KEY);
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
     let detail = `request failed (${res.status})`;
     try {
