@@ -1,6 +1,6 @@
-"""Unit tests for the intent engine (prompt, parsing, cache).
+"""Unit tests for the intent engine (prompt, parsing, cache, provider selection).
 
-The Groq client is mocked — no network, no API key needed.
+The Groq and Gemini clients are mocked — no network, no API key needed.
 """
 
 import json
@@ -76,10 +76,65 @@ def test_generate_intent_rejects_non_json():
 
 
 def test_generate_intent_without_api_key_raises():
-    with patch("app.config.get_settings",
-               return_value=SimpleNamespace(groq_api_key="")):
+    settings = SimpleNamespace(groq_api_key="", gemini_api_key="",
+                               gemini_model="gemini-2.0-flash")
+    with patch("app.config.get_settings", return_value=settings):
         with pytest.raises(IntentUnavailableError, match="API key"):
             generate_intent("abc123", "msg", "diff")
+
+
+def _settings_with(groq="", gemini="", gemini_model="gemini-2.0-flash"):
+    return SimpleNamespace(groq_api_key=groq, gemini_api_key=gemini,
+                           gemini_model=gemini_model)
+
+
+def test_gemini_provider_used_when_key_set():
+    settings = _settings_with(gemini="gkey")
+    with patch("app.config.get_settings", return_value=settings):
+        with patch.object(intent_module, "_gemini_complete",
+                          return_value=json.dumps(INTENT_PAYLOAD)) as comp:
+            result = generate_intent("abc123", "msg", "diff")
+    assert comp.called
+    assert result.model == "gemini-2.0-flash"
+    assert result.why == INTENT_PAYLOAD["why"]
+
+
+def test_gemini_wins_when_both_keys_set():
+    settings = _settings_with(groq="qkey", gemini="gkey")
+    with patch("app.config.get_settings", return_value=settings):
+        with patch.object(intent_module, "_gemini_complete",
+                          return_value=json.dumps(INTENT_PAYLOAD)) as comp:
+            result = generate_intent("abc123", "msg", "diff")
+    assert comp.called
+    assert result.model == "gemini-2.0-flash"
+
+
+def test_groq_still_used_when_only_groq_key_set():
+    settings = _settings_with(groq="qkey")
+    with patch("app.config.get_settings", return_value=settings):
+        with patch.object(intent_module, "_client",
+                          return_value=_fake_client(INTENT_PAYLOAD)):
+            result = generate_intent("abc123", "msg", "diff")
+    assert result.model == intent_module.INTENT_MODEL
+
+
+def test_gemini_without_key_raises():
+    settings = _settings_with()
+    with patch("app.config.get_settings", return_value=settings):
+        with pytest.raises(IntentUnavailableError, match="API key"):
+            intent_module._gemini_complete([])
+
+
+def test_is_configured_true_with_gemini_key():
+    settings = _settings_with(gemini="gkey")
+    with patch("app.config.get_settings", return_value=settings):
+        assert intent_module.is_configured() is True
+
+
+def test_is_configured_false_with_no_keys():
+    settings = _settings_with()
+    with patch("app.config.get_settings", return_value=settings):
+        assert intent_module.is_configured() is False
 
 
 def test_build_prompt_truncates_huge_diffs():

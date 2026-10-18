@@ -160,7 +160,8 @@ def commit_intent(repo_id: str, sha: str) -> IntentResponse:
     """Why / what bug / what risk for one commit.
 
     Served from cache when available, otherwise generated on demand with
-    Groq and cached. Returns 503 when the intent engine has no API key.
+    the configured LLM provider and cached. Returns 503 when the intent
+    engine has no API key.
     """
     snapshot = store.get_repo(repo_id)
     if snapshot is None:
@@ -220,7 +221,8 @@ def analyze_intent(repo_id: str, body: AnalyzeIntentRequest,
     if not intent_service.is_configured():
         raise HTTPException(
             status_code=503,
-            detail="intent engine unavailable — set PRISM_GROQ_API_KEY")
+            detail="intent engine unavailable — set PRISM_GROQ_API_KEY "
+                   "or PRISM_GEMINI_API_KEY")
     background.add_task(_warm_intent_cache, repo_id, body.limit)
     return {"started": True, "repo_id": repo_id, "limit": body.limit}
 

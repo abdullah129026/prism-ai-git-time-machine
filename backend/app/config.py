@@ -41,6 +41,9 @@ class Settings(BaseSettings):
 
     # Downstream services.
     groq_api_key: str = ""
+    # Gemini (alternative LLM provider for the intent engine).
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
     qdrant_url: str = "http://localhost:6333"
 
     # Pre-loaded demo repo, ingested once on startup. Empty disables it.

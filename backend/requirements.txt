@@ -9,5 +9,6 @@ tree-sitter-javascript==0.25.0
 tree-sitter-typescript==0.23.2
 qdrant-client==1.12.1
 groq==0.13.1
+google-genai==1.75.0
 httpx==0.28.1
 python-multipart==0.0.31

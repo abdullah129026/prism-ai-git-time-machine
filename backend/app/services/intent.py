@@ -1,7 +1,8 @@
 """LLM intent engine: why was this changed? what bug? what risk?
 
-Uses Groq (openai/gpt-oss-120b) with structured JSON output. Results are
-cached per repo+sha (memory + disk) so a commit is only ever analyzed once.
+Uses Groq (openai/gpt-oss-120b) by default, or Gemini when PRISM_GEMINI_API_KEY
+is set, with structured JSON output. Results are cached per repo+sha
+(memory + disk) so a commit is only ever analyzed once.
 """
 
 from __future__ import annotations
@@ -85,14 +86,28 @@ class CommitIntent:
 
 
 class IntentUnavailableError(RuntimeError):
-    """Raised when intent analysis cannot run (no Groq key, API failure)."""
+    """Raised when intent analysis cannot run (no API key, API failure)."""
+
+
+def _provider() -> tuple[str, str]:
+    """Return (provider, model) for this run.
+
+    Gemini wins when PRISM_GEMINI_API_KEY is set, otherwise Groq.
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+    if settings.gemini_api_key:
+        return "gemini", settings.gemini_model
+    return "groq", INTENT_MODEL
 
 
 def is_configured() -> bool:
-    """True when a Groq API key is present."""
+    """True when a Groq or Gemini API key is present."""
     from app.config import get_settings
 
-    return bool(get_settings().groq_api_key)
+    settings = get_settings()
+    return bool(settings.groq_api_key or settings.gemini_api_key)
 
 
 def _truncate_diff(diff: str) -> str:
@@ -125,12 +140,12 @@ def _parse_intent_response(raw: str, sha: str) -> CommitIntent:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise IntentUnavailableError(f"Groq returned non-JSON: {exc}") from exc
+        raise IntentUnavailableError(f"LLM returned non-JSON: {exc}") from exc
 
     why = str(data.get("why", "")).strip()
     risk = str(data.get("risk", "")).strip()
     if not why or not risk:
-        raise IntentUnavailableError("Groq response missing why/risk fields")
+        raise IntentUnavailableError("LLM response missing why/risk fields")
 
     bug = data.get("bug_fixed")
     if isinstance(bug, str) and bug.strip().lower() in {"none", "n/a", ""}:
@@ -157,27 +172,65 @@ def _client():
     return Groq(api_key=api_key)
 
 
-def generate_intent(sha: str, message: str, diff: str) -> CommitIntent:
-    """Call Groq to generate intent for one commit.
+def _groq_complete(messages: list[dict]) -> str:
+    """One Groq chat completion; returns the raw content string."""
+    client = _client()
+    response = client.chat.completions.create(
+        model=INTENT_MODEL,
+        messages=messages,
+        temperature=0.2,
+        max_tokens=600,
+        response_format={"type": "json_object"},
+    )
+    return response.choices[0].message.content or ""
 
+
+def _gemini_complete(messages: list[dict]) -> str:
+    """One Gemini generation; returns the raw text string."""
+    from google import genai
+    from google.genai import types
+
+    from app.config import get_settings
+
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        raise IntentUnavailableError(
+            "Gemini API key not configured — set PRISM_GEMINI_API_KEY")
+    client = genai.Client(api_key=settings.gemini_api_key)
+    system = next(m["content"] for m in messages if m["role"] == "system")
+    user = next(m["content"] for m in messages if m["role"] == "user")
+    response = client.models.generate_content(
+        model=settings.gemini_model,
+        contents=user,
+        config=types.GenerateContentConfig(
+            system_instruction=system,
+            response_mime_type="application/json",
+            temperature=0.2,
+            max_output_tokens=600,
+        ),
+    )
+    return response.text or ""
+
+
+def generate_intent(sha: str, message: str, diff: str) -> CommitIntent:
+    """Generate intent for one commit with the configured provider.
+
+    Gemini is used when PRISM_GEMINI_API_KEY is set, otherwise Groq.
     Raises IntentUnavailableError when no key is configured or the API
     fails after retries.
     """
-    client = _client()
+    provider, model = _provider()
     messages = build_prompt(message, diff)
 
     last_error: Exception | None = None
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            response = client.chat.completions.create(
-                model=INTENT_MODEL,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=600,
-                response_format={"type": "json_object"},
-            )
-            content = response.choices[0].message.content or ""
+            if provider == "gemini":
+                content = _gemini_complete(messages)
+            else:
+                content = _groq_complete(messages)
             intent = _parse_intent_response(content, sha)
+            intent.model = model
             intent.generated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                                 time.gmtime())
             return intent
@@ -189,4 +242,4 @@ def generate_intent(sha: str, message: str, diff: str) -> CommitIntent:
                         attempt, MAX_ATTEMPTS, sha, exc)
 
     raise IntentUnavailableError(
-        f"Groq request failed after {MAX_ATTEMPTS} attempts: {last_error}")
+        f"{provider} request failed after {MAX_ATTEMPTS} attempts: {last_error}")
