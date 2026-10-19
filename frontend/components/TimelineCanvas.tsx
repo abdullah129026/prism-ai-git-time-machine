@@ -49,6 +49,7 @@ function ViewToolbar({ is2D }: { is2D: boolean }) {
       <button
         className={btn(viewMode === "timeline")}
         onClick={() => setViewMode("timeline")}
+        aria-pressed={viewMode === "timeline"}
       >
         <GitCommitHorizontal size={14} />
         Timeline
@@ -56,6 +57,7 @@ function ViewToolbar({ is2D }: { is2D: boolean }) {
       <button
         className={btn(viewMode === "city")}
         onClick={() => setViewMode("city")}
+        aria-pressed={viewMode === "city"}
       >
         <Building2 size={14} />
         City
