@@ -57,6 +57,16 @@ def test_security_headers_present():
     assert resp.headers["referrer-policy"] == "no-referrer"
 
 
+def test_hsts_only_for_remote_hosts():
+    """HSTS is a remote-host signal — never sent back to local dev hosts."""
+    client = TestClient(SecurityHeadersMiddleware(_ok_app))
+    remote = client.get("/repos/abc", headers={"host": "api.example.com"})
+    assert (remote.headers["strict-transport-security"]
+            == "max-age=31536000; includeSubDomains")
+    local = client.get("/repos/abc", headers={"host": "localhost"})
+    assert "strict-transport-security" not in local.headers
+
+
 def test_host_guard_rejects_unknown_host():
     app = HostGuardMiddleware(_ok_app, allowed_hosts=["example.com"])
     client = TestClient(app)
