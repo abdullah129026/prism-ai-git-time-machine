@@ -219,3 +219,29 @@ def test_current_cache_version_round_trip(tmp_path, monkeypatch):
     cached = store.get_intent("repo-fresh", "fresh01")
     assert cached is not None
     assert cached.cache_version == intent_module.INTENT_CACHE_VERSION
+
+
+def test_generate_intent_rejects_non_json_response():
+    bad = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(
+                create=lambda **kw: _groq_response("{not valid json"))))
+    with patch.object(intent_module, "_client", return_value=bad):
+        with pytest.raises(IntentUnavailableError, match="non-JSON"):
+            generate_intent("abc123", "msg", "diff")
+
+
+def test_generate_intent_rejects_response_missing_fields():
+    payload = {"why": "", "risk": "some risk"}
+    with patch.object(intent_module, "_client",
+                      return_value=_fake_client(payload)):
+        with pytest.raises(IntentUnavailableError, match="missing"):
+            generate_intent("abc123", "msg", "diff")
+
+
+def test_generate_intent_falls_back_on_garbage_confidence():
+    payload = dict(INTENT_PAYLOAD, confidence="very sure")
+    with patch.object(intent_module, "_client",
+                      return_value=_fake_client(payload)):
+        result = generate_intent("abc123", "msg", "diff")
+    assert result.confidence == pytest.approx(0.5)
