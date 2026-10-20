@@ -16,7 +16,7 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.txt
       - run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
-      - run: cd backend && python -m pytest tests -q
+      - run: cd backend && python -m pytest tests -q --cov=app --cov-fail-under=85
       - run: python -m compileall backend/app
       - run: pip install pip-audit
       - run: python -m pip_audit -r backend/requirements.txt -r backend/requirements-dev.txt
