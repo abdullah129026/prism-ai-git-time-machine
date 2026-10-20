@@ -79,14 +79,14 @@ export default function EmptyState() {
         {ingesting ? "Cloning and parsing…" : "Explore repository"}
       </button>
       {ingesting && (
-        <p className="font-mono text-xs text-ink-dim">
+        <p role="status" className="font-mono text-xs text-ink-dim">
           {ingestProgress
             ? `${ingestProgress.stage} — ${ingestProgress.commits} commits parsed`
             : "Starting…"}
         </p>
       )}
       {ingestStatus === "error" && ingestError && (
-        <p className="max-w-md text-xs text-danger">{ingestError}</p>
+        <p role="alert" className="max-w-md text-xs text-danger">{ingestError}</p>
       )}
       <p className="font-mono text-xs text-ink-faint">
         3D timeline: click a node, scrub the axis, or use ↑ ↓
