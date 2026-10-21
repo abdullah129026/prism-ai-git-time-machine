@@ -1,8 +1,8 @@
-# PRISM — 3-Week Build Roadmap
+# PRISM: 3-Week Build Roadmap
 
 > 5–15 small, meaningful commits per day. Every commit deployable.
 
-## Week 1 — Ingest & Understand
+## Week 1: Ingest and Understand
 
 **Days 1–2: Foundation**
 - [x] Repo scaffold, docs, CI, Docker
@@ -19,7 +19,7 @@
 - [x] "Why / what bug / what risk" per commit, cached
 - [x] Commit inspector UI (2D panel)
 
-## Week 2 — 3D & Intelligence
+## Week 2: 3D and Intelligence
 
 **Days 8–10: 3D time machine**
 - [x] R3F canvas: commit nodes on time axis
@@ -36,7 +36,7 @@
 - [x] Ownership scoring (intent-weighted, not blame)
 - [x] Ownership view UI
 
-## Week 3 — Harden & Ship
+## Week 3: Harden and Ship
 
 **Days 15–17: Polish**
 - [x] Search, filters, keyboard shortcuts (⌘K palette with commit search + actions, query/author filters that dim non-matching 3D nodes, "/" focuses filter, ↑↓/Esc kept)
@@ -44,8 +44,8 @@
 - [x] Mobile fallback (2D timeline) (SVG 2D commit graph on small screens / coarse pointers / no WebGL, same selection + filter dimming)
 
 **Days 18–19: Deploy**
-- [x] Backend → Render (live: https://prism-api-te0e.onrender.com — Docker, Singapore, free tier; keep-alive cron pings /health every 5 min; `render.yaml` blueprint in repo)
-- [x] Frontend → Vercel (live: https://www.fluxyai.codes — imported manually, NEXT_PUBLIC_API_URL set to the Render URL, PRISM_CORS_ORIGINS set to the domain, custom domain verified with SSL)
+- [x] Backend → Render (live: https://prism-api-te0e.onrender.com, Docker, Singapore, free tier; keep-alive cron pings /health every 5 min; `render.yaml` blueprint in repo)
+- [x] Frontend → Vercel (live: https://prism.fluxyai.codes, imported manually, NEXT_PUBLIC_API_URL set to the Render URL, PRISM_CORS_ORIGINS set to the domain, custom domain verified with SSL)
 - [x] Docker Compose for self-host (PRISM_ env prefixes fixed, decorative Qdrant sidecar dropped, persistent /data volume)
 - [x] Demo repo pre-loaded (PRISM_DEMO_REPO ingested on startup, GET /repos/demo status, "Live demo" button in the empty state)
 

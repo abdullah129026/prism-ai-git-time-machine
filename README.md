@@ -1,6 +1,6 @@
-# PRISM — AI-Powered Git Time Machine
+# PRISM: AI-Powered Git Time Machine
 
-**Live demo:** https://www.fluxyai.codes · **API:** https://api.fluxyai.codes
+**Live demo:** https://prism.fluxyai.codes · **API:** https://api.fluxyai.codes
 
 `git log` tells you *what* changed. PRISM tells you *why*.
 
@@ -13,15 +13,15 @@ explore it on a 3D timeline (commits are nodes, files are buildings) or a flat
 
 ## What it does
 
-- **Commit intent, explained** — per-commit *why*, *what broke*, *what's risky*,
+- **Commit intent, explained:** per-commit *why*, *what broke*, *what's risky*,
   generated from the raw diff by an LLM
-- **3D timeline + file city** — fly through history; buildings are files sized
+- **3D timeline + file city:** fly through history; buildings are files sized
   by churn. Click a building to jump to the newest commit touching that file
-- **Conflict prediction** — AST-level overlap analysis (Tree-sitter) across
+- **Conflict prediction:** AST-level overlap analysis (Tree-sitter) across
   branches, *before* you merge
-- **Semantic ownership** — who actually understands the code, weighted by recent
+- **Semantic ownership:** who actually understands the code, weighted by recent
   well-understood changes. Not `git blame`
-- **Keyboard-first** — `⌘K` command palette, `/` to filter, arrow keys to walk
+- **Keyboard-first:** `⌘K` command palette, `/` to filter, arrow keys to walk
   commits, `Esc` to deselect
 
 ## Stack
@@ -37,12 +37,12 @@ explore it on a 3D timeline (commits are nodes, files are buildings) or a flat
 
 This API ingests arbitrary public repos, so it's built like it:
 
-- Repo URLs restricted to public `http(s)` — SSRF probes and `file://`,
+- Repo URLs restricted to public `http(s)`: SSRF probes and `file://`,
   ssh, and local paths are rejected by default
 - Per-IP rate limits on the expensive endpoints (cloning, AI analysis)
 - Prompt-injection hardening: raw commit content is fenced as untrusted data,
   never instructions, in every LLM call
-- Shallow clones capped at the parsed commit depth — a giant repo can't fill
+- Shallow clones capped at the parsed commit depth, so a giant repo can't fill
   the disk
 - Dependencies pinned and audited in CI (`pip-audit` blocking, `npm audit`
   report-only)
