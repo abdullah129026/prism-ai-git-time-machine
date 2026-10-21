@@ -49,6 +49,21 @@ _NAME_NODES = {
 
 _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
+#: Characters git itself forbids in refs (git-check-ref-format).
+_REF_FORBIDDEN = set(" ~^:?*[" + "\\")
+
+
+def _validate_ref(name: str, ref: str) -> None:
+    """Reject refs that are empty, option-like, or can't be real git refs.
+
+    predict_conflict passes refs to `git rev-parse --verify` as plain
+    arguments; a value starting with '-' would be parsed as a git option
+    instead of a ref, so fail fast with a clear error.
+    """
+    if (not ref or ref.startswith("-") or ref != ref.strip()
+            or any(c in _REF_FORBIDDEN for c in ref)):
+        raise ValueError(f"invalid ref {name!r}: {ref!r}")
+
 _parsers: dict[str, object] = {}
 
 
@@ -210,6 +225,8 @@ def predict_conflict(repo_path: str | Path, base: str, head: str) -> ConflictPre
     except (InvalidGitRepositoryError, NoSuchPathError) as exc:
         raise ValueError(f"not a git repository: {repo_path}") from exc
 
+    _validate_ref("base", base)
+    _validate_ref("head", head)
     try:
         base_sha = repo.git.rev_parse("--verify", base).strip()
         head_sha = repo.git.rev_parse("--verify", head).strip()

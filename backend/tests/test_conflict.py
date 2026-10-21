@@ -60,6 +60,19 @@ def test_unknown_ref_raises_value_error(branched_repo: Path):
         conflict.predict_conflict(branched_repo, "side-a", "no-such-branch")
 
 
+def test_option_like_ref_rejected(branched_repo: Path):
+    """Refs starting with '-' would be parsed as git options, not refs."""
+    with pytest.raises(ValueError, match="invalid ref"):
+        conflict.predict_conflict(branched_repo, "--verify", "main")
+    with pytest.raises(ValueError, match="invalid ref"):
+        conflict.predict_conflict(branched_repo, "main", "-h")
+
+
+def test_ref_with_forbidden_chars_rejected(branched_repo: Path):
+    with pytest.raises(ValueError, match="invalid ref"):
+        conflict.predict_conflict(branched_repo, "main", "feat/my branch")
+
+
 def test_not_a_repo_raises_value_error(tmp_path: Path):
     with pytest.raises(ValueError, match="not a git repository"):
         conflict.predict_conflict(tmp_path, "a", "b")
