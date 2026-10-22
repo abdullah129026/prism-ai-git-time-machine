@@ -128,11 +128,16 @@ class IntentResponse(BaseModel):
 
 
 def _find_commit(snapshot: dict, sha: str):
-    """Find a commit by full or short SHA."""
-    for commit in snapshot["commits"]:
-        if commit.sha == sha or commit.sha.startswith(sha):
-            return commit
-    return None
+    """Find a commit by full or short SHA.
+
+    Raises ValueError when the prefix matches more than one commit —
+    like git, refuse to guess which one was meant.
+    """
+    matches = [commit for commit in snapshot["commits"]
+               if commit.sha == sha or commit.sha.startswith(sha)]
+    if len(matches) > 1:
+        raise ValueError(f"ambiguous commit sha: {sha!r}")
+    return matches[0] if matches else None
 
 
 def _commit_summary(commit) -> IntentCommitSummary:
@@ -167,7 +172,10 @@ def commit_intent(repo_id: str, sha: str) -> IntentResponse:
     if snapshot is None:
         raise HTTPException(
             status_code=404, detail="unknown repo_id — ingest a repo first")
-    commit = _find_commit(snapshot, sha)
+    try:
+        commit = _find_commit(snapshot, sha)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     if commit is None:
         raise HTTPException(
             status_code=404, detail=f"unknown commit: {sha}")
