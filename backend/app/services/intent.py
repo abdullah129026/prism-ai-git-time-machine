@@ -187,15 +187,16 @@ def _groq_complete(messages: list[dict]) -> str:
 
 def _gemini_complete(messages: list[dict]) -> str:
     """One Gemini generation; returns the raw text string."""
-    from google import genai
-    from google.genai import types
-
     from app.config import get_settings
 
     settings = get_settings()
     if not settings.gemini_api_key:
         raise IntentUnavailableError(
             "Gemini API key not configured — set PRISM_GEMINI_API_KEY")
+
+    from google import genai
+    from google.genai import types
+
     client = genai.Client(api_key=settings.gemini_api_key)
     system = next(m["content"] for m in messages if m["role"] == "system")
     user = next(m["content"] for m in messages if m["role"] == "user")
