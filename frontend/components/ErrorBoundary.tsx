@@ -29,7 +29,10 @@ export default class ErrorBoundary extends Component<
     const { error } = this.state;
     if (error) {
       return (
-        <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+        <div
+          role="alert"
+          className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center"
+        >
           <p className="text-sm text-ink">
             The {this.props.label} ran into a problem.
           </p>
