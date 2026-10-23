@@ -18,7 +18,7 @@ from test_timeline_api import repo_id  # noqa: F401 — shared ingest fixture
 client = TestClient(app)
 
 
-def _seed(repo_id: str, shas: list[str]) -> None:
+def _seed(rid: str, shas: list[str]) -> None:
     commits = [
         ParsedCommit(
             sha=sha, message=f"commit {i}", author="t",
@@ -26,21 +26,21 @@ def _seed(repo_id: str, shas: list[str]) -> None:
         )
         for i, sha in enumerate(shas)
     ]
-    store.store_repo(repo_id, "https://example.com/r.git", commits)
+    store.store_repo(rid, "https://example.com/r.git", commits)
 
 
 def test_ambiguous_short_sha_returns_404():
-    repo_id = "ambig-repo"
-    _seed(repo_id, ["a" * 40, "a" * 39 + "b"])
-    resp = client.get(f"/repos/{repo_id}/intent/aaaa")
+    rid = "ambig-repo"
+    _seed(rid, ["a" * 40, "a" * 39 + "b"])
+    resp = client.get(f"/repos/{rid}/intent/aaaa")
     assert resp.status_code == 404
     assert "ambiguous" in resp.json()["detail"]
 
 
 def test_unknown_short_sha_returns_404():
-    repo_id = "ambig-repo-2"
-    _seed(repo_id, ["a" * 40, "b" * 40])
-    resp = client.get(f"/repos/{repo_id}/intent/zzzz")
+    rid = "ambig-repo-2"
+    _seed(rid, ["a" * 40, "b" * 40])
+    resp = client.get(f"/repos/{rid}/intent/zzzz")
     assert resp.status_code == 404
     assert "unknown commit" in resp.json()["detail"]
 
@@ -51,7 +51,7 @@ def test_analyze_intent_unknown_repo_404():
     assert "unknown repo_id" in resp.json()["detail"]
 
 
-def test_analyze_intent_unconfigured_503(repo_id: str):
+def test_analyze_intent_unconfigured_503(repo_id: str):  # noqa: F811 — param requests the shared fixture by name
     with patch("app.services.intent.is_configured", return_value=False):
         resp = client.post(f"/repos/{repo_id}/intent/analyze",
                            json={"limit": 5})
@@ -59,7 +59,7 @@ def test_analyze_intent_unconfigured_503(repo_id: str):
     assert "intent engine unavailable" in resp.json()["detail"]
 
 
-def test_analyze_intent_starts_warming(repo_id: str):
+def test_analyze_intent_starts_warming(repo_id: str):  # noqa: F811 — param requests the shared fixture by name
     with patch("app.services.intent.is_configured", return_value=True), \
             patch("app.routers.analyze._warm_intent_cache") as warm:
         resp = client.post(f"/repos/{repo_id}/intent/analyze",
@@ -74,7 +74,7 @@ def test_warm_intent_cache_unknown_repo_returns():
     assert _warm_intent_cache("no-such-repo", 5) is None
 
 
-def test_warm_intent_cache_skips_cached_commits(repo_id: str):
+def test_warm_intent_cache_skips_cached_commits(repo_id: str):  # noqa: F811 — param requests the shared fixture by name
     commits = store.get_repo(repo_id)["commits"]
     store.set_intent(
         repo_id, commits[0].sha,
@@ -86,7 +86,7 @@ def test_warm_intent_cache_skips_cached_commits(repo_id: str):
     assert gen.call_args[0][1] == commits[1].sha
 
 
-def test_warm_intent_cache_stops_when_engine_unavailable(repo_id: str):
+def test_warm_intent_cache_stops_when_engine_unavailable(repo_id: str):  # noqa: F811 — param requests the shared fixture by name
     with patch("app.routers.analyze._generate_and_cache",
                side_effect=IntentUnavailableError("no key")) as gen:
         _warm_intent_cache(repo_id, 20)

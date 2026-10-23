@@ -188,7 +188,7 @@ def commit_intent(repo_id: str, sha: str) -> IntentResponse:
 
     try:
         intent = _generate_and_cache(repo_id, commit.sha, commit.message)
-    except IntentUnavailableError as exc:
+    except IntentUnavailableError:
         return IntentResponse(
             repo_id=repo_id, cached=False,
             commit=_commit_summary(commit), intent=None,
