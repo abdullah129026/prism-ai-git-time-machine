@@ -330,9 +330,16 @@ def ownership(repo_id: str, path: str | None = None) -> OwnershipResponse:
 
     related_paths: list[str] = []
     if path:
-        target = repo_dir(repo_id) / path
+        # Same symlink guard as the index: a path inside the repo that
+        # resolves outside it must not be read, even though `..` and
+        # absolute paths are already rejected upstream.
+        root = repo_dir(repo_id)
+        target = root / path
         try:
-            text = target.read_text(encoding="utf-8") if target.is_file() else ""
+            resolved = target.resolve()
+            inside = resolved.is_relative_to(root.resolve())
+            text = (target.read_text(encoding="utf-8")
+                    if inside and target.is_file() else "")
         except OSError:
             text = ""
         if text:

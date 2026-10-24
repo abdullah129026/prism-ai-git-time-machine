@@ -1,9 +1,23 @@
 """Unit tests for the code-chunk embedding index (Qdrant, local mode)."""
 
 import math
+import os
 from pathlib import Path
 
 from app.services import embeddings
+
+
+def test_index_file_ignores_symlink_outside_repo(tmp_path: Path):
+    """A symlink inside the repo pointing outside it must not be indexed:
+    its target's content is not repo content."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    secret = tmp_path / "outside-secret.txt"
+    secret.write_text("def leaked():\n    return 'secret'\n")
+    os.symlink(secret, repo / "link.py")
+    store = tmp_path / "qdrant"
+    assert embeddings.index_file(repo, "repo-1", "link.py",
+                                 storage_dir=store) == 0
 
 
 def test_embed_text_is_deterministic_and_normalized():

@@ -139,6 +139,11 @@ def index_file(repo_path: str | Path, repo_id: str, rel_path: str,
     try:
         if not full.is_file() or full.stat().st_size > MAX_FILE_BYTES:
             return 0
+        # Cloned repos are untrusted content: a symlink inside the repo
+        # pointing outside it must not be indexed as repo content.
+        root = Path(repo_path).resolve()
+        if not full.resolve().is_relative_to(root):
+            return 0
         source = full.read_bytes()
     except OSError:
         return 0

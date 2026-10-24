@@ -1,5 +1,6 @@
 """API tests for semantic ownership: GET /repos/{repo_id}/ownership."""
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -76,3 +77,37 @@ def test_ownership_traversal_400(repo_id: str):
 def test_ownership_unknown_repo_404():
     resp = client.get("/repos/no-such-repo/ownership")
     assert resp.status_code == 404
+
+
+def test_ownership_symlink_does_not_read_outside_repo(
+        tmp_path: Path, monkeypatch):
+    """A symlink inside a cloned repo must not let ?path= read a file
+    outside the repo and feed it to the similarity search."""
+    from app.routers import analyze as analyze_router
+
+    secret = tmp_path / "outside-secret.txt"
+    secret.write_text("TOP-SECRET-TOKEN-DO-NOT-READ")
+    repo = tmp_path / "linkable"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "alice@example.com")
+    _git(repo, "config", "user.name", "Alice")
+    (repo / "real.py").write_text("def real():\n    return 1\n")
+    os.symlink(secret, repo / "link.py")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "add real file and symlink")
+
+    resp = client.post("/repos", json={"repo_url": str(repo)})
+    assert resp.status_code == 202
+    status = client.get(f"/repos/{resp.json()['job_id']}").json()
+    assert status["status"] == "ready"
+    repo_id = status["repo_id"]
+
+    seen: list[str] = []
+    monkeypatch.setattr(
+        analyze_router.embeddings_service, "similar_chunks",
+        lambda repo_id_, text, **kw: seen.append(text) or [])
+    body = client.get(f"/repos/{repo_id}/ownership",
+                      params={"path": "link.py"}).json()
+    assert body["owners"], "symlinked path is still a touched path"
+    assert seen == [], "outside-repo content must never reach similarity search"
