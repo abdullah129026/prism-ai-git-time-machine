@@ -32,6 +32,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: cd frontend && npm ci && npm run typecheck
+      # typecheck alone cannot catch build-time failures (bad page exports,
+      # prerender errors); the deployed artifact must actually build.
+      - run: cd frontend && npm run build
       # non-blocking until the baseline is verified clean: surfaces new
       # advisories in the log without failing the build
       - run: cd frontend && npm audit --audit-level=high
