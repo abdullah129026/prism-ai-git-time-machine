@@ -129,6 +129,10 @@ def clone_repo(url: str, dest: Path, timeout: int = 300,
     clone_kwargs: dict = {"kill_after_timeout": timeout}
     if depth is not None:
         clone_kwargs["depth"] = max(1, depth)
+        # --depth implies --single-branch, which would leave every branch
+        # except the default one unfetched and break conflict prediction
+        # (and any other branch-aware feature) on ingested repos.
+        clone_kwargs["no_single_branch"] = True
     try:
         Repo.clone_from(url, str(dest), **clone_kwargs)
     except GitCommandError as exc:

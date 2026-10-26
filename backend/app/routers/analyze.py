@@ -105,8 +105,10 @@ def timeline(
 
 
 class ConflictRequest(BaseModel):
-    base: str
-    head: str
+    # Empty refs are a client error (422), not an "unknown ref" (404):
+    # the service layer can only report refs it was actually given.
+    base: str = Field(min_length=1)
+    head: str = Field(min_length=1)
 
 
 class IntentCommitSummary(BaseModel):

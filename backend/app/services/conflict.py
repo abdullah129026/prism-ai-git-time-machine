@@ -213,6 +213,21 @@ def _changed_files(repo: Repo, rev_a: str, rev_b: str) -> set[str]:
     return {p for p in raw.split("\0") if p}
 
 
+def _resolve_ref(repo: Repo, ref: str) -> str:
+    """Resolve a branch name to a SHA.
+
+    Ingested repos are clones: only the default branch is checked out
+    locally, every other branch lives as a remote-tracking ref, and
+    `rev-parse --verify <branch>` does not resolve those. Fall back to
+    `origin/<branch>` so conflict prediction works on real branch names,
+    not just the checked-out one.
+    """
+    try:
+        return repo.git.rev_parse("--verify", ref).strip()
+    except GitCommandError:
+        return repo.git.rev_parse("--verify", f"origin/{ref}").strip()
+
+
 def predict_conflict(repo_path: str | Path, base: str, head: str) -> ConflictPrediction:
     """Probability that merging `head` into `base` hits a conflict.
 
@@ -228,8 +243,8 @@ def predict_conflict(repo_path: str | Path, base: str, head: str) -> ConflictPre
     _validate_ref("base", base)
     _validate_ref("head", head)
     try:
-        base_sha = repo.git.rev_parse("--verify", base).strip()
-        head_sha = repo.git.rev_parse("--verify", head).strip()
+        base_sha = _resolve_ref(repo, base)
+        head_sha = _resolve_ref(repo, head)
     except GitCommandError as exc:
         raise ValueError(f"unknown branch or ref: {base!r} / {head!r}") from exc
 
