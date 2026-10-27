@@ -7,6 +7,7 @@ deploys.
 
 from __future__ import annotations
 
+import shutil
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -172,5 +173,9 @@ def run_ingest(job_id: str) -> None:
                      stage_detail=f"parsed {len(commits)} commits",
                      commits_parsed=len(commits), finished_at=_now())
     except Exception as exc:  # noqa: BLE001 — surfaced via job status
+        # A failed ingest must not leave a partial clone behind: it wastes
+        # disk, and nothing distinguishes it from a usable repo later.
+        # The dir is always data_dir/repos/<uuid>, created by this job.
+        shutil.rmtree(dest, ignore_errors=True)
         store.update(job_id, status="error", stage_detail="ingest failed",
                      error=str(exc)[:500], finished_at=_now())
