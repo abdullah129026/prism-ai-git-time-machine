@@ -248,7 +248,13 @@ def predict_conflict(repo_path: str | Path, base: str, head: str) -> ConflictPre
     except GitCommandError as exc:
         raise ValueError(f"unknown branch or ref: {base!r} / {head!r}") from exc
 
-    merge_base = repo.git.merge_base(base_sha, head_sha).strip().split()[0]
+    try:
+        merge_base = repo.git.merge_base(base_sha, head_sha).strip().split()[0]
+    except (GitCommandError, IndexError) as exc:
+        # Unrelated histories (orphan branches) have no merge-base; git
+        # exits nonzero. That is a client error (404 upstream), not a 500.
+        raise ValueError(
+            f"no common history between {base!r} and {head!r}") from exc
 
     base_files = _changed_files(repo, merge_base, base_sha)
     head_files = _changed_files(repo, merge_base, head_sha)

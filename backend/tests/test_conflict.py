@@ -60,6 +60,26 @@ def test_unknown_ref_raises_value_error(branched_repo: Path):
         conflict.predict_conflict(branched_repo, "side-a", "no-such-branch")
 
 
+def test_unrelated_histories_raise_value_error(tmp_path: Path):
+    # Orphan branches share no merge-base: git merge-base exits nonzero,
+    # which must surface as a ValueError (404 upstream), not a 500.
+    repo = tmp_path / "orphans"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+    (repo / "a.py").write_text("x = 1\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "main root")
+    _git(repo, "checkout", "--orphan", "orphan")
+    _git(repo, "rm", "-rf", ".")
+    (repo / "b.py").write_text("y = 2\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "orphan root")
+    with pytest.raises(ValueError, match="no common history"):
+        conflict.predict_conflict(repo, "main", "orphan")
+
+
 def test_option_like_ref_rejected(branched_repo: Path):
     """Refs starting with '-' would be parsed as git options, not refs."""
     with pytest.raises(ValueError, match="invalid ref"):
