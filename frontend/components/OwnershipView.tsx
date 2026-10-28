@@ -84,7 +84,7 @@ export default function OwnershipView() {
       </button>
 
       {status === "error" && error && (
-        <p className="mt-3 text-xs text-danger">{error}</p>
+        <p role="alert" className="mt-3 text-xs text-danger">{error}</p>
       )}
 
       {status === "ready" && result && <OwnershipResult result={result} />}

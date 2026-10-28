@@ -150,7 +150,7 @@ function InspectorError({
   onRetry: () => void;
 }) {
   return (
-    <div className="p-4">
+    <div className="p-4" role="alert">
       <div className="rounded border hairline bg-elevated p-3">
         <p className="text-sm font-medium text-ink">Couldn&apos;t load intent</p>
         <p className="mt-1 text-sm text-ink-dim">{message}</p>

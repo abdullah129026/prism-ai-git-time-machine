@@ -155,7 +155,10 @@ export default function TimelineCanvas() {
       )}
 
       {timelineStatus === "error" && (
-        <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+        <div
+          role="alert"
+          className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center"
+        >
           <p className="text-sm text-ink">Could not load the timeline.</p>
           {timelineError && (
             <p className="max-w-md font-mono text-xs text-danger">
