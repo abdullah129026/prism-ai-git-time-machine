@@ -207,6 +207,48 @@ def test_stale_disk_cache_is_ignored(tmp_path, monkeypatch):
     assert not path.exists()  # stale file cleaned up
 
 
+def test_disk_cache_survives_restart(tmp_path, monkeypatch):
+    import app.services.jobs as jobs_module
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    monkeypatch.setattr(jobs_module, "get_settings", lambda: settings)
+    intent = CommitIntent(sha="restart01", why="w", bug_fixed=None,
+                          risk="r", confidence=0.7)
+    store.set_intent("repo-restart", "restart01", intent)
+    # a fresh store has empty memory: the entry must come back from disk
+    fresh_store = jobs_module.JobStore()
+    cached = fresh_store.get_intent("repo-restart", "restart01")
+    assert cached is not None
+    assert cached.sha == "restart01"
+    assert cached.why == "w"
+    assert cached.cache_version == intent_module.INTENT_CACHE_VERSION
+
+
+def test_stale_memory_entry_is_evicted(tmp_path, monkeypatch):
+    import app.services.jobs as jobs_module
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    monkeypatch.setattr(jobs_module, "get_settings", lambda: settings)
+    stale = CommitIntent(sha="mem01", why="w", bug_fixed=None, risk="r",
+                         confidence=0.5, cache_version=0)
+    key = store._intent_key("repo-memstale", "mem01")
+    store._intents[key] = stale
+    assert store.get_intent("repo-memstale", "mem01") is None
+    assert key not in store._intents  # stale entry dropped, not re-served
+
+
+def test_corrupt_disk_cache_is_a_miss_not_a_crash(tmp_path, monkeypatch):
+    import app.services.jobs as jobs_module
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    monkeypatch.setattr(jobs_module, "get_settings", lambda: settings)
+    path = tmp_path / "intents" / "repo-corrupt" / "bad01.json"
+    path.parent.mkdir(parents=True)
+    path.write_text("{not valid json")
+    fresh_store = jobs_module.JobStore()
+    assert fresh_store.get_intent("repo-corrupt", "bad01") is None
+
+
 def test_current_cache_version_round_trip(tmp_path, monkeypatch):
     import app.services.jobs as jobs_module
 
