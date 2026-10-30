@@ -249,6 +249,23 @@ def test_corrupt_disk_cache_is_a_miss_not_a_crash(tmp_path, monkeypatch):
     assert fresh_store.get_intent("repo-corrupt", "bad01") is None
 
 
+def test_non_object_disk_cache_is_a_miss_not_a_crash(tmp_path, monkeypatch):
+    """Valid JSON of the wrong type (a string, not an object) must miss.
+
+    The corrupt-cache test covers unparseable JSON; this covers parsed
+    JSON whose .get call would otherwise raise AttributeError up to a 500.
+    """
+    import app.services.jobs as jobs_module
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    monkeypatch.setattr(jobs_module, "get_settings", lambda: settings)
+    path = tmp_path / "intents" / "repo-nonobj" / "bad02.json"
+    path.parent.mkdir(parents=True)
+    path.write_text('"just a string"')
+    fresh_store = jobs_module.JobStore()
+    assert fresh_store.get_intent("repo-nonobj", "bad02") is None
+
+
 def test_current_cache_version_round_trip(tmp_path, monkeypatch):
     import app.services.jobs as jobs_module
 

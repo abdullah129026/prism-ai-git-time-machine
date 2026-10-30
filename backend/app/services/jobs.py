@@ -70,6 +70,8 @@ class JobStore:
         if disk_path.exists():
             try:
                 data = json.loads(disk_path.read_text())
+                if not isinstance(data, dict):
+                    return None  # valid JSON, wrong shape — a miss, not a crash
                 if data.get("cache_version") != INTENT_CACHE_VERSION:
                     try:
                         disk_path.unlink()
