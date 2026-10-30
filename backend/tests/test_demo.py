@@ -85,6 +85,21 @@ def test_demo_seeding_when_marker_points_nowhere(monkeypatch, tmp_path):
         get_settings.cache_clear()
 
 
+@pytest.mark.parametrize("marker", ["[1, 2]", "{not valid json"])
+def test_demo_seeding_when_marker_is_not_an_object(monkeypatch, tmp_path, marker):
+    """A corrupt or non-object marker must degrade to seeding, never 500."""
+    monkeypatch.setenv("PRISM_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("PRISM_DEMO_REPO", "https://github.com/example/demo.git")
+    get_settings.cache_clear()
+    try:
+        (tmp_path / "demo.json").write_text(marker)
+        resp = client.get("/repos/demo")
+        assert resp.status_code == 200
+        assert resp.json() == {"enabled": True, "repo_id": None, "status": "seeding"}
+    finally:
+        get_settings.cache_clear()
+
+
 def test_seed_demo_skips_invalid_url(monkeypatch, tmp_path):
     monkeypatch.setenv("PRISM_DATA_DIR", str(tmp_path))
     get_settings.cache_clear()

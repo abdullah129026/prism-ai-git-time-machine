@@ -54,9 +54,12 @@ def _demo_repo_id(cfg: Settings) -> str | None:
     if not marker.exists():
         return None
     try:
-        return json.loads(marker.read_text()).get("repo_id")
+        data = json.loads(marker.read_text())
     except (OSError, ValueError):
         return None
+    # A truncated or hand-edited marker may parse to a non-object; the
+    # endpoint must degrade to "seeding", never 500 on .get.
+    return data.get("repo_id") if isinstance(data, dict) else None
 
 
 # Registered before /{job_id} so "demo" isn't captured as a job id.
