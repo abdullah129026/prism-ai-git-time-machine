@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push supersedes an older in-progress run on the same branch, but
+# main is never cancelled: a main run is the deployed artifact's gate.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   backend:
     runs-on: ubuntu-latest
