@@ -4,6 +4,7 @@ Covers GET /repos/{repo_id}/intent/{sha} lookup semantics and the
 POST /repos/{repo_id}/intent/analyze warming paths.
 """
 
+import uuid
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -68,6 +69,72 @@ def test_analyze_intent_starts_warming(repo_id: str):  # noqa: F811 — param re
     assert resp.json() == {"started": True, "repo_id": repo_id, "limit": 5}
     # TestClient runs background tasks synchronously before returning.
     warm.assert_called_once_with(repo_id, 5)
+
+
+def _unique_rid(prefix: str) -> str:
+    # Intent cache spills to disk (/tmp/prism_data), so a fixed repo id
+    # would read a previous run's cache and flip cached True/False.
+    return f"{prefix}-{uuid.uuid4().hex[:8]}"
+
+
+def test_intent_cached_hit_returns_cached():
+    rid = _unique_rid("intent-cached-repo")
+    sha = "c" * 40
+    _seed(rid, [sha])
+    store.set_intent(
+        rid, sha,
+        CommitIntent(sha=sha, why="fix crash", bug_fixed="crash",
+                     risk="none", confidence=0.9))
+    resp = client.get(f"/repos/{rid}/intent/{sha}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["cached"] is True
+    assert body["intent"]["why"] == "fix crash"
+    assert body["intent_available"] is True
+
+
+def test_intent_generates_and_caches_when_missing():
+    rid = _unique_rid("intent-gen-repo")
+    sha = "d" * 40
+    _seed(rid, [sha])
+    intent = CommitIntent(sha=sha, why="add retry", bug_fixed=None,
+                          risk="extra latency", confidence=0.8)
+    with patch("app.routers.analyze.git_parser.diff_for_commit",
+               return_value="diff") as diff, \
+            patch("app.routers.analyze.intent_service.generate_intent",
+                  return_value=intent) as gen:
+        resp = client.get(f"/repos/{rid}/intent/{sha}")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["cached"] is False
+        assert body["intent"]["why"] == "add retry"
+        # Second call is served from the cache the first call populated.
+        resp2 = client.get(f"/repos/{rid}/intent/{sha}")
+    assert resp2.json()["cached"] is True
+    diff.assert_called_once()
+    gen.assert_called_once()
+
+
+def test_intent_unavailable_degrades_to_200():
+    rid = _unique_rid("intent-down-repo")
+    sha = "e" * 40
+    _seed(rid, [sha])
+    with patch("app.routers.analyze.git_parser.diff_for_commit",
+               return_value="diff"), \
+            patch("app.routers.analyze.intent_service.generate_intent",
+                  side_effect=IntentUnavailableError("no key")):
+        resp = client.get(f"/repos/{rid}/intent/{sha}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["cached"] is False
+    assert body["intent"] is None
+    assert body["intent_available"] is False
+
+
+def test_intent_unknown_repo_404():
+    resp = client.get("/repos/no-such-repo/intent/" + "f" * 40)
+    assert resp.status_code == 404
+    assert "unknown repo_id" in resp.json()["detail"]
 
 
 def test_warm_intent_cache_unknown_repo_returns():
