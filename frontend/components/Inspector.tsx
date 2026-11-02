@@ -131,7 +131,7 @@ function InspectorEmpty() {
 
 function InspectorSkeleton() {
   return (
-    <div className="space-y-3 p-4" aria-label="Loading commit intent">
+    <div className="space-y-3 p-4" role="status" aria-label="Loading commit intent">
       <div className="h-4 w-3/4 animate-pulse rounded bg-elevated" />
       <div className="h-3 w-1/2 animate-pulse rounded bg-elevated" />
       <div className="h-3 w-2/3 animate-pulse rounded bg-elevated" />

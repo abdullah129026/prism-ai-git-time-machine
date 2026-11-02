@@ -26,7 +26,10 @@ const Scene3D = dynamic(() => import("./Scene3D"), {
 
 function SceneFallback({ label }: { label: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3">
+    <div
+      className="flex h-full flex-col items-center justify-center gap-3"
+      role="status"
+    >
       <Loader2 size={20} className="animate-spin text-ink-faint" />
       <p className="text-sm text-ink-dim">{label}</p>
     </div>
