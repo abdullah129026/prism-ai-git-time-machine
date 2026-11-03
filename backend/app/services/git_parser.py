@@ -75,6 +75,12 @@ def validate_repo_url(url: str, *, allow_local: bool | None = None) -> str:
         if scheme not in _ALLOWED_SCHEMES:
             raise ValueError(f"unsupported URL scheme: {scheme}")
         if scheme in ("http", "https"):
+            # A credential-bearing URL must never reach clone: the URL is
+            # copied into the job's stage_detail and clone-failure error,
+            # both served back via the job-status endpoint.
+            if urlparse(url).username is not None:
+                raise ValueError(
+                    "repo URLs must not contain credentials")
             _require_public_host(url)
             return url
         if not allow_local:

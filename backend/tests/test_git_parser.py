@@ -145,6 +145,20 @@ def test_validate_repo_url_accepts_public_https():
         assert git_parser.validate_repo_url(url, allow_local=False) == url
 
 
+def test_validate_repo_url_rejects_credentials_in_url():
+    # A credential-bearing URL must never reach clone: the URL is copied
+    # into the job's stage_detail and clone-failure error, both served
+    # back via the job-status endpoint.
+    with pytest.raises(ValueError, match="credentials"):
+        git_parser.validate_repo_url(
+            "https://user:s3cret@github.com/owner/repo.git",
+            allow_local=False)
+    with pytest.raises(ValueError, match="credentials"):
+        git_parser.validate_repo_url(
+            "https://token@github.com/owner/repo.git",
+            allow_local=False)
+
+
 def test_validate_repo_url_rejects_unresolvable_host():
     with patch("socket.getaddrinfo",
                side_effect=socket.gaierror("nope")):
