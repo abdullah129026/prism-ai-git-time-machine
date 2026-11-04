@@ -51,6 +51,11 @@ def test_ingest_rejects_bad_url():
     assert "scheme" in resp.json()["detail"]
 
 
+def test_ingest_rejects_overlong_url():
+    resp = client.post("/repos", json={"repo_url": "https://example.com/" + "x" * 2048})
+    assert resp.status_code == 422
+
+
 def test_ingest_rejects_empty_url():
     resp = client.post("/repos", json={"repo_url": "   "})
     assert resp.status_code == 400

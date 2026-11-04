@@ -14,7 +14,9 @@ settings = get_settings()
 
 
 class IngestRequest(BaseModel):
-    repo_url: str
+    # A URL longer than this cannot be a real repo address; rejecting it
+    # at validation keeps a huge payload from reaching DNS and git.
+    repo_url: str = Field(max_length=2048)
     max_commits: int = Field(default=500, ge=1, le=5000)
 
 
