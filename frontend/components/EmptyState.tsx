@@ -33,7 +33,7 @@ export default function EmptyState() {
     <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
       <FolderGit2 size={28} className="text-ink-faint" />
       <div>
-        <h1 className="text-lg font-medium">Explore a repository's history</h1>
+        <h1 className="text-lg font-medium">Explore a repository&rsquo;s history</h1>
         <p className="mt-1 max-w-sm text-sm text-ink-dim">
           Paste a git URL. PRISM clones it, parses every commit, and renders
           the history as a 3D timeline — select any commit to inspect its

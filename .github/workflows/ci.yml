@@ -38,6 +38,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: cd frontend && npm ci && npm run typecheck
+      # Lint was never wired up: `next lint` had no config and prompted
+      # interactively, so nothing ever checked it.
+      - run: cd frontend && npm run lint
       # typecheck alone cannot catch build-time failures (bad page exports,
       # prerender errors); the deployed artifact must actually build.
       - run: cd frontend && npm run build
