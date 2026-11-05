@@ -45,10 +45,31 @@ export class ApiError extends Error {
   }
 }
 
+/** Bound on one request: the backend runs on a free tier that cold-starts,
+ *  so give it a full minute, but never hang the UI forever on a dead
+ *  connection — the store's ingest loop and timeline load have no other
+ *  way out of a stalled fetch. */
+const REQUEST_TIMEOUT_MS = 60_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (ACF_API_KEY) headers.set("x-api-key", ACF_API_KEY);
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new ApiError(
+        0,
+        "request timed out — the server may be waking up, try again",
+      );
+    }
+    throw err;
+  }
   if (!res.ok) {
     let detail = `request failed (${res.status})`;
     try {
