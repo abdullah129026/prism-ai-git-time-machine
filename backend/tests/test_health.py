@@ -28,3 +28,18 @@ def test_ready_reports_dependency_checks():
     body = resp.json()
     assert body["checks"]["git_available"] is True
     assert body["ready"] is True
+
+
+def test_ready_reports_unwritable_data_dir(tmp_path, monkeypatch):
+    """A data_dir that cannot be created (here: an existing regular file)
+    must surface as not-ready, not a 500."""
+    from app.main import settings
+
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("x")
+    monkeypatch.setattr(settings, "data_dir", blocker)
+    resp = client.get("/ready")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ready"] is False
+    assert body["checks"]["data_dir_writable"] is False
