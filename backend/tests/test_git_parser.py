@@ -80,6 +80,23 @@ def test_walk_history_not_a_repo(tmp_path: Path):
         git_parser.walk_history(tmp_path)
 
 
+def test_parse_numstat_log_skips_malformed_lines_and_defaults_non_numeric():
+    """A numstat block with a malformed line and binary (-/-) counts must
+    not break parsing: the bad line is skipped, binary files get 0 counts."""
+    sep = git_parser._FIELD_SEP
+    sha = "a" * 40
+    header = sep.join(["COMMIT:" + sha, "Author", "a@b.c",
+                       "2026-01-01T00:00:00+00:00", "", "subject"])
+    block = "1\t0\tapp.py\n-\t-\tlogo.png\nbogus-line\n"
+    commits = git_parser._parse_numstat_log(header + "\0" + block + "\0")
+    assert len(commits) == 1
+    assert commits[0].sha == sha
+    files = {f.path: f for f in commits[0].files}
+    assert set(files) == {"app.py", "logo.png"}
+    assert (files["app.py"].additions, files["app.py"].deletions) == (1, 0)
+    assert (files["logo.png"].additions, files["logo.png"].deletions) == (0, 0)
+
+
 def test_diff_for_commit_returns_patch(sample_repo: Path):
     commits = git_parser.walk_history(sample_repo)
     diff = git_parser.diff_for_commit(sample_repo, commits[1].sha)
