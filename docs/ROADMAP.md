@@ -52,4 +52,4 @@
 **Days 20–21: Launch**
 - [ ] Demo video, README polish
 - [ ] Performance pass, docs
-- [ ] v1.0 tag
+- [x] v1.0 tag
