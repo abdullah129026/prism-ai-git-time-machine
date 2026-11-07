@@ -1,6 +1,8 @@
 """Tests for the pre-loaded demo repo: config binding, /repos/demo, seed logic."""
 
 import json
+import threading
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -110,3 +112,65 @@ def test_seed_demo_skips_invalid_url(monkeypatch, tmp_path):
         assert not (tmp_path / "demo.json").exists()
     finally:
         get_settings.cache_clear()
+
+
+def _wait_for(path, timeout=5.0):
+    """Poll until path exists with content; False when the seed thread
+    never writes it (write_text creates the file before filling it)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.exists() and path.stat().st_size > 0:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_seed_demo_writes_marker_when_ingest_succeeds(
+        monkeypatch, fresh_settings):
+    """Happy path: a finished ingest leaves demo.json with repo id + url."""
+    cfg = fresh_settings
+    cfg.demo_repo = "https://github.com/example/demo.git"
+    done = threading.Event()
+
+    def fake_ingest(job_id):
+        job = store.get(job_id)
+        job.status = "ready"
+        done.set()
+
+    monkeypatch.setattr(main.git_parser, "validate_repo_url",
+                        lambda url: url)
+    monkeypatch.setattr(main, "run_ingest", fake_ingest)
+    main._seed_demo(cfg)
+    assert done.wait(5.0)
+    marker = cfg.data_dir / "demo.json"
+    assert _wait_for(marker)
+    body = json.loads(marker.read_text())
+    assert body["repo_url"] == "https://github.com/example/demo.git"
+    assert body["repo_id"]
+
+
+def test_seed_demo_writes_no_marker_when_ingest_fails(
+        monkeypatch, fresh_settings):
+    """A job that never reaches ready must not leave a stale marker."""
+    cfg = fresh_settings
+    cfg.demo_repo = "https://github.com/example/demo.git"
+    done = threading.Event()
+
+    def fake_ingest(job_id):
+        job = store.get(job_id)
+        job.status = "error"
+        done.set()
+
+    monkeypatch.setattr(main.git_parser, "validate_repo_url",
+                        lambda url: url)
+    monkeypatch.setattr(main, "run_ingest", fake_ingest)
+    main._seed_demo(cfg)
+    assert done.wait(5.0)
+    time.sleep(0.2)  # let the seed thread notice the failed job
+    assert not (cfg.data_dir / "demo.json").exists()
+
+
+def test_lifespan_runs_with_demo_disabled(fresh_settings):
+    """Startup with no demo repo configured must not fail the boot."""
+    with TestClient(main.app) as client:
+        assert client.get("/health").status_code == 200

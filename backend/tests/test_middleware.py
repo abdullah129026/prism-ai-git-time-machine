@@ -7,7 +7,12 @@ from app.middleware import (
     HostGuardMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
+    _client_ip,
 )
+
+
+def test_client_ip_unknown_without_client_or_forwarded_for():
+    assert _client_ip({"headers": []}) == "unknown"
 
 
 async def _ok_app(scope, receive, send):
