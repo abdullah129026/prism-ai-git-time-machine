@@ -39,6 +39,12 @@ export default function Scrubber({
 
   if (count === 0) return null;
 
+  // Screen readers announce a bare slider number otherwise; name the
+  // commit at the current position instead.
+  const valueText = meta
+    ? `${meta.sha.slice(0, 7)}: ${meta.message.split("\n")[0] || "(no message)"}`
+    : `Commit ${idx + 1} of ${count}`;
+
   return (
     <div className="absolute inset-x-0 bottom-0 z-10 border-t hairline bg-surface px-4 py-2.5">
       <div className="flex items-center gap-3">
@@ -58,6 +64,7 @@ export default function Scrubber({
           onChange={(e) => onSelect(layout.orderedShas[Number(e.target.value)])}
           className="prism-range min-w-0 flex-1"
           aria-label="Scrub commit history"
+          aria-valuetext={valueText}
         />
         <button
           className="btn-quiet shrink-0 !px-2"
