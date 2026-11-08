@@ -247,7 +247,14 @@ function InspectorBody({
                   {Math.round(intent.confidence * 100)}%
                 </span>
               </div>
-              <div className="mt-1.5 h-1 overflow-hidden rounded bg-elevated">
+              <div
+                className="mt-1.5 h-1 overflow-hidden rounded bg-elevated"
+                role="progressbar"
+                aria-label="Intent confidence"
+                aria-valuenow={Math.round(intent.confidence * 100)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
                 <div
                   className="h-full rounded bg-accent transition-all duration-300"
                   style={{ width: `${Math.round(intent.confidence * 100)}%` }}
