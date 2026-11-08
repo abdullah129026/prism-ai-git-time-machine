@@ -104,7 +104,16 @@ export default function TimelineCanvas() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+      // Skip form controls: arrows move the caret in text inputs and
+      // change the option in the author <select>; hijacking them here
+      // would break the filter dropdown's native keyboard behavior.
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT")
+      )
+        return;
       if (!timeline || timelineStatus !== "ready") return;
       if (e.key === "Escape") {
         selectCommit(null);
