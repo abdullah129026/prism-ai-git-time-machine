@@ -4,6 +4,8 @@ The Groq and Gemini clients are mocked — no network, no API key needed.
 """
 
 import json
+import sys
+import types
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -116,6 +118,94 @@ def test_groq_still_used_when_only_groq_key_set():
                           return_value=_fake_client(INTENT_PAYLOAD)):
             result = generate_intent("abc123", "msg", "diff")
     assert result.model == intent_module.INTENT_MODEL
+
+
+def test_gemini_complete_calls_genai_with_json_config(monkeypatch):
+    """The real Gemini call path (not the mocked boundary): model, system
+    instruction, JSON mime type, and generation limits all reach the API."""
+    settings = _settings_with(gemini="gkey", gemini_model="gemini-2.0-flash")
+    captured: dict = {}
+    for name, mod in _fake_genai_modules(captured, json.dumps(INTENT_PAYLOAD)).items():
+        monkeypatch.setitem(sys.modules, name, mod)
+    messages = build_prompt("bump timeout", "+timeout=90")
+    with patch("app.config.get_settings", return_value=settings):
+        result = intent_module._gemini_complete(messages)
+    assert result == json.dumps(INTENT_PAYLOAD)
+    assert captured["api_key"] == "gkey"
+    assert captured["generate"]["model"] == "gemini-2.0-flash"
+    assert captured["generate"]["contents"] == messages[1]["content"]
+    config = captured["config"]
+    assert config["system_instruction"] == messages[0]["content"]
+    assert config["response_mime_type"] == "application/json"
+    assert config["temperature"] == 0.2
+    assert config["max_output_tokens"] == 600
+
+
+def test_gemini_complete_empty_text_returns_empty(monkeypatch):
+    settings = _settings_with(gemini="gkey")
+    captured: dict = {}
+    for name, mod in _fake_genai_modules(captured, text=None).items():
+        monkeypatch.setitem(sys.modules, name, mod)
+    with patch("app.config.get_settings", return_value=settings):
+        assert intent_module._gemini_complete(build_prompt("msg", "diff")) == ""
+
+
+def test_generate_intent_end_to_end_via_stubbed_gemini(monkeypatch):
+    """Provider selection plus the real Gemini call plus parsing, wired
+    together — the earlier tests only ever mocked _gemini_complete itself."""
+    settings = _settings_with(gemini="gkey", gemini_model="gemini-2.0-flash")
+    captured: dict = {}
+    for name, mod in _fake_genai_modules(captured, json.dumps(INTENT_PAYLOAD)).items():
+        monkeypatch.setitem(sys.modules, name, mod)
+    with patch("app.config.get_settings", return_value=settings):
+        result = generate_intent("abc123", "bump timeout", "+timeout=90")
+    assert result.why == INTENT_PAYLOAD["why"]
+    assert result.confidence == pytest.approx(0.85)
+    assert result.model == "gemini-2.0-flash"
+    assert captured["generate"]["model"] == "gemini-2.0-flash"
+
+
+def _fake_genai_modules(captured: dict, text: str | None):
+    """Stub google / google.genai / google.genai.types modules recording
+    what _gemini_complete passes to the client. Returned as
+    {sys.modules name: module} for monkeypatch.setitem."""
+    class _FakeConfig:
+        def __init__(self, **kwargs):
+            captured["config"] = kwargs
+
+    fake_types = types.ModuleType("google.genai.types")
+    fake_types.GenerateContentConfig = _FakeConfig
+
+    class _FakeModels:
+        def generate_content(self, **kwargs):
+            captured["generate"] = kwargs
+            return SimpleNamespace(text=text)
+
+    class _FakeClient:
+        def __init__(self, api_key=None):
+            captured["api_key"] = api_key
+            self.models = _FakeModels()
+
+    fake_genai = types.ModuleType("google.genai")
+    fake_genai.Client = _FakeClient
+    fake_genai.types = fake_types
+
+    fake_google = types.ModuleType("google")
+    fake_google.genai = fake_genai
+    return {
+        "google": fake_google,
+        "google.genai": fake_genai,
+        "google.genai.types": fake_types,
+    }
+
+
+def test_client_returns_groq_client_with_configured_key():
+    settings = _settings_with(groq="qkey")
+    sentinel = object()
+    with patch("app.config.get_settings", return_value=settings):
+        with patch("groq.Groq", return_value=sentinel) as groq_cls:
+            assert intent_module._client() is sentinel
+    groq_cls.assert_called_once_with(api_key="qkey")
 
 
 def test_gemini_without_key_raises():
