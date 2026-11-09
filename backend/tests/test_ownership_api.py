@@ -79,6 +79,22 @@ def test_ownership_unknown_repo_404():
     assert resp.status_code == 404
 
 
+def test_ownership_unparseable_dates_404(tmp_path: Path):
+    """A repo whose commits have no parseable dates fails inside
+    semantic_owners; the endpoint maps that ValueError to 404, not 500."""
+    from app.services.git_parser import FileChange, ParsedCommit
+    from app.services.jobs import store
+
+    commit = ParsedCommit(
+        sha="c" * 40, message="change auth", author="Alice",
+        author_email="alice@example.com", committed_at="garbage-date",
+        files=[FileChange(path="auth.py", additions=5)])
+    store.store_repo("own-api-nodates", str(tmp_path), [commit])
+    resp = client.get("/repos/own-api-nodates/ownership")
+    assert resp.status_code == 404
+    assert "no parseable commit dates" in resp.json()["detail"]
+
+
 def test_ownership_symlink_does_not_read_outside_repo(
         tmp_path: Path, monkeypatch):
     """A symlink inside a cloned repo must not let ?path= read a file

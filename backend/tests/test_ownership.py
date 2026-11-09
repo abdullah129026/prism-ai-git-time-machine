@@ -1,14 +1,20 @@
 """Unit tests for intent-weighted semantic ownership scoring."""
 
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from app.services import git_parser
+from app.services.git_parser import FileChange, ParsedCommit
 from app.services.intent import CommitIntent
 from app.services.jobs import store
-from app.services.ownership import _validate_path, semantic_owners
+from app.services.ownership import (
+    _recency_weight,
+    _validate_path,
+    semantic_owners,
+)
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -91,3 +97,51 @@ def test_path_validation_rejects_traversal():
         with pytest.raises(ValueError, match="invalid path"):
             _validate_path(bad)
     assert _validate_path("src/auth.py") == "src/auth.py"
+    assert _validate_path("./src/auth.py") == "src/auth.py"
+
+
+def test_recency_weight_unparseable_date_counts_full():
+    """A commit whose date cannot be parsed must not vanish from the
+    ranking: it counts at full weight instead of raising."""
+    assert _recency_weight("not-a-date", datetime(2026, 11, 9)) == 1.0
+
+
+def test_recency_weight_halves_after_one_half_life():
+    newest = datetime(2026, 11, 9)
+    assert _recency_weight("2026-11-09T00:00:00", newest) == pytest.approx(1.0)
+    assert _recency_weight("2026-05-13T00:00:00", newest) == pytest.approx(0.5)
+
+
+def test_empty_repo_raises(tmp_path: Path):
+    store.store_repo("own-empty", str(tmp_path), [])
+    with pytest.raises(ValueError, match="no commits in repo"):
+        semantic_owners("own-empty")
+
+
+def _commit_with_date(sha: str, committed_at: str) -> ParsedCommit:
+    return ParsedCommit(
+        sha=sha, message="change auth", author="Alice",
+        author_email="alice@example.com", committed_at=committed_at,
+        files=[FileChange(path="auth.py", additions=5)])
+
+
+def test_no_parseable_dates_raises(tmp_path: Path):
+    """Every commit date unparseable: the ranking cannot pick a newest
+    commit, so it raises instead of dividing by a bogus recency."""
+    store.store_repo("own-nodates", str(tmp_path),
+                     [_commit_with_date("a" * 40, "garbage-date")])
+    with pytest.raises(ValueError, match="no parseable commit dates"):
+        semantic_owners("own-nodates")
+
+
+def test_mixed_parseable_and_unparseable_dates_rank(tmp_path: Path):
+    """One bad date among good ones: the bad commit still counts (full
+    recency weight) and the good one anchors the newest date."""
+    store.store_repo("own-mixeddates", str(tmp_path), [
+        _commit_with_date("a" * 40, "garbage-date"),
+        _commit_with_date("b" * 40, "2026-11-09T00:00:00"),
+    ])
+    owners = semantic_owners("own-mixeddates")
+    assert [o.login for o in owners] == ["Alice"]
+    assert owners[0].commits == 2
+    assert owners[0].lines == 10

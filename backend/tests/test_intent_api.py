@@ -115,6 +115,19 @@ def test_intent_generates_and_caches_when_missing():
     gen.assert_called_once()
 
 
+def test_intent_diff_failure_returns_404():
+    """The commit is in the snapshot but its diff cannot be read (clone
+    gone from disk, commit pruned): a 404, not a 500 from diff_for_commit."""
+    rid = _unique_rid("intent-diff-fail-repo")
+    sha = "e" * 40
+    _seed(rid, [sha])
+    with patch("app.routers.analyze.git_parser.diff_for_commit",
+               side_effect=ValueError(f"unknown commit: {sha}")):
+        resp = client.get(f"/repos/{rid}/intent/{sha}")
+    assert resp.status_code == 404
+    assert "unknown commit" in resp.json()["detail"]
+
+
 def test_intent_unavailable_degrades_to_200():
     rid = _unique_rid("intent-down-repo")
     sha = "e" * 40
