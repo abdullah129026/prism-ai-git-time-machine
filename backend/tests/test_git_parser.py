@@ -3,11 +3,13 @@
 import socket
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 
 from app.services import git_parser
+from git.exc import GitCommandError
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -210,3 +212,115 @@ def test_clone_repo_without_depth_omits_flag(tmp_path: Path, sample_repo: Path):
         git_parser.clone_repo(str(sample_repo), dest)
     _, kwargs = mock_clone.call_args
     assert "depth" not in kwargs
+
+
+def test_validate_repo_url_accepts_git_and_file_schemes_with_allow_local():
+    """Non-http schemes are returned unchanged when local repos are
+    allowed — the allow_local branch for git:/ssh:/file: URLs."""
+    assert git_parser.validate_repo_url(
+        "git://github.com/owner/repo.git", allow_local=True) == \
+        "git://github.com/owner/repo.git"
+    assert git_parser.validate_repo_url(
+        "file:///srv/repos/example.git", allow_local=True) == \
+        "file:///srv/repos/example.git"
+
+
+def test_validate_repo_url_rejects_host_with_no_addresses():
+    """DNS resolving to zero addresses is a failure, not a pass-through:
+    _require_public_host must not accept an empty IP set."""
+    with patch("socket.getaddrinfo", return_value=[]):
+        with pytest.raises(ValueError, match="could not resolve"):
+            git_parser.validate_repo_url("https://empty.invalid/x.git",
+                                         allow_local=False)
+
+
+def test_diff_for_commit_truncates_huge_diff(tmp_path: Path):
+    """A commit whose diff exceeds MAX_DIFF_CHARS is cut with a marker
+    instead of flowing the whole patch into the intent prompt."""
+    repo = tmp_path / "huge"
+    repo.mkdir()
+    _git(repo, "init")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+    (repo / "big.txt").write_text("x" * (git_parser.MAX_DIFF_CHARS + 10_000))
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "add huge file")
+    sha = git_parser.walk_history(repo)[0].sha
+    diff = git_parser.diff_for_commit(repo, sha)
+    assert diff.endswith(
+        f"\n... [truncated at {git_parser.MAX_DIFF_CHARS} chars]")
+    assert len(diff) < git_parser.MAX_DIFF_CHARS + 100
+
+
+def test_walk_history_returns_empty_when_log_fails(tmp_path: Path):
+    """git log failing on an otherwise valid repo (corrupt HEAD, broken
+    object store) degrades to an empty history, not a 500."""
+    repo = tmp_path / "broken"
+    repo.mkdir()
+    git = SimpleNamespace(
+        log=Mock(side_effect=GitCommandError("git log", 128)))
+    with patch.object(git_parser, "Repo",
+                      return_value=SimpleNamespace(git=git)):
+        assert git_parser.walk_history(repo) == []
+
+
+def test_validate_repo_url_accepts_scp_like_with_allow_local():
+    """An scp-like URL is a local-style URL: accepted when local repos
+    are allowed, rejected by default (covered by the deny-by-default
+    test above)."""
+    url = "git@github.com:owner/repo.git"
+    assert git_parser.validate_repo_url(url, allow_local=True) == url
+
+
+def test_diff_for_commit_on_non_repo_raises(tmp_path: Path):
+    with pytest.raises(ValueError, match="not a git repository"):
+        git_parser.diff_for_commit(tmp_path, "a" * 40)
+
+
+def test_walk_history_returns_empty_when_log_has_no_commits(tmp_path: Path):
+    """git log succeeding but yielding no COMMIT records (a HEAD pointing
+    at nothing parseable) is an empty history, not a crash."""
+    repo = tmp_path / "no-commits"
+    repo.mkdir()
+    git = SimpleNamespace(log=Mock(return_value=""))
+    with patch.object(git_parser, "Repo",
+                      return_value=SimpleNamespace(git=git)):
+        assert git_parser.walk_history(repo) == []
+
+
+def test_walk_history_status_log_failure_defaults_to_modified(
+        sample_repo: Path):
+    """When the name-status log fails, change types degrade to 'M'
+    instead of failing the whole ingest."""
+    from git import Repo as RealRepo
+
+    real = RealRepo(str(sample_repo))
+    numstat_raw = real.git.log(
+        "HEAD", "--max-count=500", f"--format={git_parser._LOG_FORMAT}",
+        "--numstat", "--no-renames", "-z")
+    git = SimpleNamespace(log=Mock(side_effect=[
+        numstat_raw, GitCommandError("git log", 128)]))
+    with patch.object(git_parser, "Repo",
+                      return_value=SimpleNamespace(git=git)):
+        commits = git_parser.walk_history(sample_repo)
+    assert len(commits) == 3
+    assert all(f.change_type == "M" for c in commits for f in c.files)
+
+
+def test_parse_status_log_skips_tokens_before_first_commit():
+    """A status log with leading junk before the first COMMIT header
+    must not crash or attribute files to a phantom commit."""
+    parsed = git_parser._parse_status_log(
+        "junk\0COMMIT:" + "b" * 40 + "\0M\0app.py\0")
+    assert parsed == {"b" * 40: {"app.py": "M"}}
+
+
+def test_clone_repo_wraps_clone_failure(tmp_path: Path, sample_repo: Path):
+    """A clone that git itself rejects surfaces as a RuntimeError naming
+    the URL, not a raw GitCommandError leaking git internals."""
+    dest = tmp_path / "fail-clone"
+    with patch.object(git_parser.Repo, "clone_from",
+                      side_effect=GitCommandError("clone", 128,
+                                                  stderr="fatal: nope")):
+        with pytest.raises(RuntimeError, match="clone failed"):
+            git_parser.clone_repo(str(sample_repo), dest)
