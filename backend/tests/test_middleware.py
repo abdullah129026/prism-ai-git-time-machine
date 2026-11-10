@@ -1,5 +1,7 @@
 """Tests for the security middlewares (rate limit, headers, host guard)."""
 
+import time
+
 from fastapi.testclient import TestClient
 from starlette.responses import JSONResponse
 
@@ -52,6 +54,16 @@ def test_rate_limit_covers_intent_endpoints():
     assert client.get("/repos/abc/intent/def").status_code == 200
     assert client.get("/repos/abc/intent/def").status_code == 429
     assert client.post("/repos/abc/intent/analyze").status_code == 429
+
+
+def test_rate_limit_prunes_expired_buckets_over_cap():
+    # Past 5000 tracked buckets the limiter drops fully-expired ones, so a
+    # long-lived process never grows its hit table without bound.
+    app = RateLimitMiddleware(_ok_app, ingest_per_hour=20, intent_per_hour=120)
+    stale = time.monotonic() - 4000  # older than the 1h window
+    app._hits = {(f"10.0.0.{i}", "ingest"): [stale] for i in range(5001)}
+    assert app._check(("203.0.113.7", "ingest"), "ingest") == 0
+    assert list(app._hits) == [("203.0.113.7", "ingest")]
 
 
 def test_security_headers_present():
