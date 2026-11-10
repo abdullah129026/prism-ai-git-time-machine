@@ -22,7 +22,9 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.txt
       - run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
-      - run: cd backend && python -m pytest tests -q --cov=app --cov-fail-under=85
+      # ratchet gate: measured 99% on 2026-11-10, so 95% locks the coverage
+      # work in while leaving refactor slack
+      - run: cd backend && python -m pytest tests -q --cov=app --cov-fail-under=95
       - run: ruff check backend/ --select F
       - run: python -m compileall backend/app
       - run: pip install pip-audit
