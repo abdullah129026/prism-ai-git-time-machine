@@ -86,6 +86,8 @@ def chunks_for_file(source: bytes, rel_path: str) -> list[CodeChunk]:
         text = source.decode("utf-8")
     except UnicodeDecodeError:
         return []  # binary — nothing to embed
+    if not text.strip():
+        return []  # empty file — nothing to embed, not even a file chunk
     lines = text.splitlines()
 
     symbols = conflict_service.extract_symbols(source, rel_path)

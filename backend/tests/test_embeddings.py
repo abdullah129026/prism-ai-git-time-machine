@@ -56,6 +56,11 @@ def test_chunks_for_file_skips_binary():
     assert embeddings.chunks_for_file(b"\x00\x01\x02\xff", "blob.bin") == []
 
 
+def test_chunks_for_file_skips_empty():
+    assert embeddings.chunks_for_file(b"", "empty.py") == []
+    assert embeddings.chunks_for_file(b"   \n\n", "blank.py") == []
+
+
 def _write_repo(root: Path) -> Path:
     repo = root / "code"
     repo.mkdir()
@@ -121,3 +126,27 @@ def test_index_scope_bounds_files(tmp_path: Path):
         repo, "repo-1", ["auth.py", "charts.py", "missing.py"],
         max_files=1, storage_dir=store)
     assert total == 2  # only the first file indexed
+
+
+def test_index_file_empty_file_returns_zero(tmp_path: Path):
+    """An empty file yields no chunks, so it indexes nothing instead of
+    writing an empty point to Qdrant."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "empty.py").write_text("")
+    assert embeddings.index_file(repo, "repo-1", "empty.py",
+                                 storage_dir=tmp_path / "qdrant") == 0
+
+
+def test_index_file_read_failure_returns_zero(tmp_path: Path, monkeypatch):
+    """A file that vanishes (or becomes unreadable) mid-ingest must not
+    raise: index_file returns 0 and the ingest continues."""
+    repo = _write_repo(tmp_path)
+    store = tmp_path / "qdrant"
+
+    def _boom(self, *args, **kwargs):
+        raise OSError("file vanished mid-ingest")
+
+    monkeypatch.setattr(Path, "read_bytes", _boom)
+    assert embeddings.index_file(repo, "repo-1", "auth.py",
+                                 storage_dir=store) == 0
