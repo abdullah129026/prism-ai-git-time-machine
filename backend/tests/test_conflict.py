@@ -1,5 +1,6 @@
 """Unit tests for conflict prediction (AST overlap between branches)."""
 
+import importlib
 import subprocess
 from pathlib import Path
 
@@ -112,6 +113,24 @@ def test_extract_symbols_javascript_arrow_binding():
 
 def test_extract_symbols_unsupported_language_returns_empty():
     assert conflict.extract_symbols(b"hello", "notes.txt") == []
+
+
+def test_extract_symbols_anonymous_default_export_skipped():
+    """`export default function() {}` has no name child: the parser must
+    silently skip it, not crash or mis-attribute the symbol."""
+    assert conflict.extract_symbols(b"export default function() {}", "a.js") == []
+
+
+def test_parser_for_missing_grammar_returns_none(monkeypatch):
+    """A grammar package that isn't installed degrades to None (and the
+    caller falls back to shared changed lines) instead of raising."""
+    monkeypatch.setattr(conflict, "_parsers", {})
+
+    def _boom(name, *args, **kwargs):
+        raise ImportError("no grammar installed")
+
+    monkeypatch.setattr(importlib, "import_module", _boom)
+    assert conflict._parser_for("a.py") is None
 
 
 def test_untracked_extension_falls_back_to_shared_lines(tmp_path: Path):
