@@ -132,3 +132,47 @@ def test_untracked_extension_falls_back_to_shared_lines(tmp_path: Path):
     result = conflict.predict_conflict(repo, "t-a", "t-b")
     assert result.probability > 0
     assert result.overlapping_files[0].shared_lines > 0
+
+
+def test_deleted_on_one_side_is_not_a_conflict(tmp_path: Path):
+    """File deleted on one side and edited on the other: git merges that
+    fine, so the predictor must return a prediction, not raise."""
+    repo = tmp_path / "del"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+    (repo / "app.py").write_text("def foo():\n    return 1\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "base")
+    _git(repo, "checkout", "-b", "del")
+    (repo / "app.py").unlink()
+    _git(repo, "commit", "-am", "delete app.py")
+    _git(repo, "checkout", "-b", "edit", "main")
+    (repo / "app.py").write_text("def foo():\n    return 2\n")
+    _git(repo, "commit", "-am", "edit app.py")
+    result = conflict.predict_conflict(repo, "del", "edit")
+    assert result.probability == 0.0
+    assert result.overlapping_symbols == []
+
+
+def test_changed_lines_respects_cap(tmp_path: Path):
+    """The 50,000-line safety cap: a diff wider than the cap returns at
+    most `cap` lines instead of the whole file."""
+    repo = tmp_path / "cap"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test User")
+    (repo / "f.py").write_text("".join(f"line{i}\n" for i in range(10)))
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "base")
+    _git(repo, "checkout", "-b", "wide")
+    (repo / "f.py").write_text("".join(f"changed{i}\n" for i in range(10)))
+    _git(repo, "commit", "-am", "rewrite all lines")
+    from git import Repo
+
+    lines = conflict.changed_lines(Repo(str(repo)), "main", "wide", "f.py",
+                                   cap=5)
+    assert len(lines) == 5
+    assert lines == {1, 2, 3, 4, 5}
