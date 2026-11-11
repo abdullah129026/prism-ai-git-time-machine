@@ -37,8 +37,7 @@ class Owner:
 
 def _validate_path(path: str) -> str:
     path = (path or "").strip()
-    if path.startswith("./"):
-        path = path[2:]
+    path = path.removeprefix("./")
     if not path or len(path) > MAX_PATH_LEN:
         raise ValueError(f"invalid path: {path!r}")
     if Path(path).is_absolute() or ".." in Path(path).parts:
@@ -106,8 +105,8 @@ def semantic_owners(repo_id: str, path: str | None = None) -> list[Owner]:
         headline = (commit.message.splitlines() or [""])[0][:72]
         entry["evidence"].append(
             (contribution,
-             f"{commit.sha[:7]} +{sum(f.additions for f in scoped)}/"
-             f"-{sum(f.deletions for f in scoped)}, {headline}"))
+             (f"{commit.sha[:7]} +{sum(f.additions for f in scoped)}/"
+             f"-{sum(f.deletions for f in scoped)}, {headline}")))
 
     if matched == 0:
         raise ValueError(f"no commits touch path: {scope!r}")

@@ -3,7 +3,7 @@
 import json
 import logging
 import threading
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from shutil import which
 
 from fastapi import FastAPI
@@ -51,12 +51,11 @@ def _seed_demo(cfg: Settings) -> None:
         done = store.get(job.job_id)
         if done is None or done.status != "ready":
             return
-        try:
+        # marker is best-effort; /repos/demo degrades to "seeding"
+        with suppress(OSError):
             marker.write_text(
                 json.dumps({"repo_id": done.repo_id, "repo_url": repo_url})
             )
-        except OSError:
-            pass  # marker is best-effort; /repos/demo degrades to "seeding"
 
     threading.Thread(target=_run, daemon=True, name="prism-demo-seed").start()
 

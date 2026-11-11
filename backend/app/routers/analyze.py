@@ -3,13 +3,13 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app.services import git_parser
 from app.services import conflict as conflict_service
 from app.services import embeddings as embeddings_service
+from app.services import git_parser
 from app.services import intent as intent_service
+from app.services import ownership as ownership_service
 from app.services.intent import CommitIntent, IntentUnavailableError
 from app.services.jobs import repo_dir, store
-from app.services import ownership as ownership_service
 
 router = APIRouter()
 

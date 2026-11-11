@@ -70,7 +70,7 @@ class CommitIntent:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CommitIntent":
+    def from_dict(cls, data: dict) -> CommitIntent:
         return cls(
             sha=data["sha"],
             why=data["why"],

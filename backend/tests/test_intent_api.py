@@ -8,13 +8,13 @@ import uuid
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from test_timeline_api import repo_id  # noqa: F401 — shared ingest fixture
 
 from app.main import app
 from app.routers.analyze import _warm_intent_cache
 from app.services.git_parser import ParsedCommit
 from app.services.intent import CommitIntent, IntentUnavailableError
 from app.services.jobs import store
-from test_timeline_api import repo_id  # noqa: F401 — shared ingest fixture
 
 client = TestClient(app)
 

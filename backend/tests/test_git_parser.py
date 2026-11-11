@@ -7,9 +7,9 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
+from git.exc import GitCommandError
 
 from app.services import git_parser
-from git.exc import GitCommandError
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -180,10 +180,9 @@ def test_validate_repo_url_rejects_credentials_in_url():
 
 def test_validate_repo_url_rejects_unresolvable_host():
     with patch("socket.getaddrinfo",
-               side_effect=socket.gaierror("nope")):
-        with pytest.raises(ValueError, match="could not resolve"):
-            git_parser.validate_repo_url("https://nonexistent.invalid/x.git",
-                                           allow_local=False)
+               side_effect=socket.gaierror("nope")), pytest.raises(ValueError, match="could not resolve"):
+        git_parser.validate_repo_url("https://nonexistent.invalid/x.git",
+                                       allow_local=False)
 
 
 def test_clone_repo_copies_local_path(tmp_path: Path, sample_repo: Path):
@@ -228,10 +227,9 @@ def test_validate_repo_url_accepts_git_and_file_schemes_with_allow_local():
 def test_validate_repo_url_rejects_host_with_no_addresses():
     """DNS resolving to zero addresses is a failure, not a pass-through:
     _require_public_host must not accept an empty IP set."""
-    with patch("socket.getaddrinfo", return_value=[]):
-        with pytest.raises(ValueError, match="could not resolve"):
-            git_parser.validate_repo_url("https://empty.invalid/x.git",
-                                         allow_local=False)
+    with patch("socket.getaddrinfo", return_value=[]), pytest.raises(ValueError, match="could not resolve"):
+        git_parser.validate_repo_url("https://empty.invalid/x.git",
+                                     allow_local=False)
 
 
 def test_diff_for_commit_truncates_huge_diff(tmp_path: Path):
@@ -321,6 +319,5 @@ def test_clone_repo_wraps_clone_failure(tmp_path: Path, sample_repo: Path):
     dest = tmp_path / "fail-clone"
     with patch.object(git_parser.Repo, "clone_from",
                       side_effect=GitCommandError("clone", 128,
-                                                  stderr="fatal: nope")):
-        with pytest.raises(RuntimeError, match="clone failed"):
-            git_parser.clone_repo(str(sample_repo), dest)
+                                                  stderr="fatal: nope")), pytest.raises(RuntimeError, match="clone failed"):
+        git_parser.clone_repo(str(sample_repo), dest)

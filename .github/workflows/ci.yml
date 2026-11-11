@@ -25,7 +25,9 @@ jobs:
       # ratchet gate: measured 99% on 2026-11-10, so 95% locks the coverage
       # work in while leaving refactor slack
       - run: cd backend && python -m pytest tests -q --cov=app --cov-fail-under=95
-      - run: ruff check backend/ --select F
+      # lint gate covers import order, pyupgrade, refurb, implicit string
+      # concat, and simplify rules too — not just pyflakes findings
+      - run: ruff check backend/ --select F,I,UP,FURB,ISC,SIM
       - run: python -m compileall backend/app
       - run: pip install pip-audit
       - run: python -m pip_audit -r backend/requirements.txt -r backend/requirements-dev.txt

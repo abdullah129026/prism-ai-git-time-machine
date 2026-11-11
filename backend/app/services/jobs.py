@@ -7,23 +7,23 @@ deploys.
 
 from __future__ import annotations
 
+import json
 import shutil
 import threading
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
-import json
 
 from app.config import get_settings
 from app.services import git_parser
 from app.services.git_parser import ParsedCommit
-from app.services.intent import CommitIntent, INTENT_CACHE_VERSION
+from app.services.intent import INTENT_CACHE_VERSION, CommitIntent
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @dataclass
@@ -73,10 +73,8 @@ class JobStore:
                 if not isinstance(data, dict):
                     return None  # valid JSON, wrong shape — a miss, not a crash
                 if data.get("cache_version") != INTENT_CACHE_VERSION:
-                    try:
+                    with suppress(OSError):
                         disk_path.unlink()
-                    except OSError:
-                        pass
                     return None
                 intent = CommitIntent.from_dict(data)
                 with self._lock:

@@ -65,24 +65,21 @@ def test_generate_intent_normalizes_none_bug():
 def test_generate_intent_rejects_empty_why():
     payload = dict(INTENT_PAYLOAD, why="  ")
     with patch.object(intent_module, "_client",
-                      return_value=_fake_client(payload)):
-        with pytest.raises(IntentUnavailableError):
-            generate_intent("abc123", "msg", "diff")
+                      return_value=_fake_client(payload)), pytest.raises(IntentUnavailableError):
+        generate_intent("abc123", "msg", "diff")
 
 
 def test_generate_intent_rejects_non_json():
     with patch.object(intent_module, "_client",
-                      return_value=_groq_response("not json")):
-        with pytest.raises(IntentUnavailableError):
-            generate_intent("abc123", "msg", "diff")
+                      return_value=_groq_response("not json")), pytest.raises(IntentUnavailableError):
+        generate_intent("abc123", "msg", "diff")
 
 
 def test_generate_intent_without_api_key_raises():
     settings = SimpleNamespace(groq_api_key="", gemini_api_key="",
                                gemini_model="gemini-2.0-flash")
-    with patch("app.config.get_settings", return_value=settings):
-        with pytest.raises(IntentUnavailableError, match="API key"):
-            generate_intent("abc123", "msg", "diff")
+    with patch("app.config.get_settings", return_value=settings), pytest.raises(IntentUnavailableError, match="API key"):
+        generate_intent("abc123", "msg", "diff")
 
 
 def _settings_with(groq="", gemini="", gemini_model="gemini-2.0-flash"):
@@ -92,10 +89,9 @@ def _settings_with(groq="", gemini="", gemini_model="gemini-2.0-flash"):
 
 def test_gemini_provider_used_when_key_set():
     settings = _settings_with(gemini="gkey")
-    with patch("app.config.get_settings", return_value=settings):
-        with patch.object(intent_module, "_gemini_complete",
-                          return_value=json.dumps(INTENT_PAYLOAD)) as comp:
-            result = generate_intent("abc123", "msg", "diff")
+    with patch("app.config.get_settings", return_value=settings), patch.object(intent_module, "_gemini_complete",
+                      return_value=json.dumps(INTENT_PAYLOAD)) as comp:
+        result = generate_intent("abc123", "msg", "diff")
     assert comp.called
     assert result.model == "gemini-2.0-flash"
     assert result.why == INTENT_PAYLOAD["why"]
@@ -103,20 +99,18 @@ def test_gemini_provider_used_when_key_set():
 
 def test_gemini_wins_when_both_keys_set():
     settings = _settings_with(groq="qkey", gemini="gkey")
-    with patch("app.config.get_settings", return_value=settings):
-        with patch.object(intent_module, "_gemini_complete",
-                          return_value=json.dumps(INTENT_PAYLOAD)) as comp:
-            result = generate_intent("abc123", "msg", "diff")
+    with patch("app.config.get_settings", return_value=settings), patch.object(intent_module, "_gemini_complete",
+                      return_value=json.dumps(INTENT_PAYLOAD)) as comp:
+        result = generate_intent("abc123", "msg", "diff")
     assert comp.called
     assert result.model == "gemini-2.0-flash"
 
 
 def test_groq_still_used_when_only_groq_key_set():
     settings = _settings_with(groq="qkey")
-    with patch("app.config.get_settings", return_value=settings):
-        with patch.object(intent_module, "_client",
-                          return_value=_fake_client(INTENT_PAYLOAD)):
-            result = generate_intent("abc123", "msg", "diff")
+    with patch("app.config.get_settings", return_value=settings), patch.object(intent_module, "_client",
+                      return_value=_fake_client(INTENT_PAYLOAD)):
+        result = generate_intent("abc123", "msg", "diff")
     assert result.model == intent_module.INTENT_MODEL
 
 
@@ -202,17 +196,15 @@ def _fake_genai_modules(captured: dict, text: str | None):
 def test_client_returns_groq_client_with_configured_key():
     settings = _settings_with(groq="qkey")
     sentinel = object()
-    with patch("app.config.get_settings", return_value=settings):
-        with patch("groq.Groq", return_value=sentinel) as groq_cls:
-            assert intent_module._client() is sentinel
+    with patch("app.config.get_settings", return_value=settings), patch("groq.Groq", return_value=sentinel) as groq_cls:
+        assert intent_module._client() is sentinel
     groq_cls.assert_called_once_with(api_key="qkey")
 
 
 def test_gemini_without_key_raises():
     settings = _settings_with()
-    with patch("app.config.get_settings", return_value=settings):
-        with pytest.raises(IntentUnavailableError, match="API key"):
-            intent_module._gemini_complete([])
+    with patch("app.config.get_settings", return_value=settings), pytest.raises(IntentUnavailableError, match="API key"):
+        intent_module._gemini_complete([])
 
 
 def test_is_configured_true_with_gemini_key():
@@ -375,17 +367,15 @@ def test_generate_intent_rejects_non_json_response():
         chat=SimpleNamespace(
             completions=SimpleNamespace(
                 create=lambda **kw: _groq_response("{not valid json"))))
-    with patch.object(intent_module, "_client", return_value=bad):
-        with pytest.raises(IntentUnavailableError, match="non-JSON"):
-            generate_intent("abc123", "msg", "diff")
+    with patch.object(intent_module, "_client", return_value=bad), pytest.raises(IntentUnavailableError, match="non-JSON"):
+        generate_intent("abc123", "msg", "diff")
 
 
 def test_generate_intent_rejects_response_missing_fields():
     payload = {"why": "", "risk": "some risk"}
     with patch.object(intent_module, "_client",
-                      return_value=_fake_client(payload)):
-        with pytest.raises(IntentUnavailableError, match="missing"):
-            generate_intent("abc123", "msg", "diff")
+                      return_value=_fake_client(payload)), pytest.raises(IntentUnavailableError, match="missing"):
+        generate_intent("abc123", "msg", "diff")
 
 
 def test_generate_intent_falls_back_on_garbage_confidence():
