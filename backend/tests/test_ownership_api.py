@@ -160,3 +160,50 @@ def test_ownership_path_outside_top_churn_is_appended_to_index_scope(
     assert len(seen_scopes) == 1
     assert len(seen_scopes[0]) == 21
     assert "f20.py" in seen_scopes[0]
+
+
+def test_ownership_unreadable_related_file_falls_back_to_no_related(
+        tmp_path: Path, monkeypatch):
+    """If the ?path= file cannot be read, the endpoint returns the owners
+    with no related paths instead of failing the request.
+
+    Fabricated in the store (no ingest) so the suite stays under the
+    ingest rate limit; the repo dir is pointed at a tmp dir so the file
+    read is real."""
+    from app.routers import analyze as analyze_router
+    from app.services.git_parser import FileChange, ParsedCommit
+    from app.services.jobs import store
+
+    commit = ParsedCommit(
+        sha="b" * 40, message="change auth", author="Alice",
+        author_email="alice@example.com", committed_at="2026-10-22T00:00:00",
+        files=[FileChange(path="auth.py", additions=5)])
+    store.store_repo("own-api-unreadable", "local://unreadable", [commit])
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "auth.py").write_text(
+        "def authenticate_user(password):\n    return 1\n")
+    monkeypatch.setattr(analyze_router, "repo_dir",
+                        lambda _repo_id: repo_root)
+
+    monkeypatch.setattr(
+        analyze_router.embeddings_service, "index_scope",
+        lambda *args, **kw: None)
+    seen: list[str] = []
+    monkeypatch.setattr(
+        analyze_router.embeddings_service, "similar_chunks",
+        lambda repo_id_, text, **kw: seen.append(text) or [])
+
+    orig_read_text = Path.read_text
+
+    def _read_text(self, *args, **kwargs):
+        if self.name == "auth.py":
+            raise OSError("unreadable")
+        return orig_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _read_text)
+    body = client.get("/repos/own-api-unreadable/ownership",
+                      params={"path": "auth.py"}).json()
+    assert body["owners"]
+    assert body["related_paths"] == []
+    assert seen == []
