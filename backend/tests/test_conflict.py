@@ -121,6 +121,15 @@ def test_extract_symbols_anonymous_default_export_skipped():
     assert conflict.extract_symbols(b"export default function() {}", "a.js") == []
 
 
+def test_extract_symbols_computed_method_name_skipped():
+    """A computed method name (`["x"]() {}`) has no name child either:
+    the method is skipped while the enclosing class is still recorded."""
+    symbols = {s.name: s.kind
+               for s in conflict.extract_symbols(
+                   b"class A {\n    [\"x\"]() {}\n}\n", "a.js")}
+    assert symbols == {"A": "class"}
+
+
 def test_parser_for_missing_grammar_returns_none(monkeypatch):
     """A grammar package that isn't installed degrades to None (and the
     caller falls back to shared changed lines) instead of raising."""
