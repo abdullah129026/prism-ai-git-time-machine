@@ -127,3 +127,36 @@ def test_ownership_symlink_does_not_read_outside_repo(
                       params={"path": "link.py"}).json()
     assert body["owners"], "symlinked path is still a touched path"
     assert seen == [], "outside-repo content must never reach similarity search"
+
+
+def test_ownership_path_outside_top_churn_is_appended_to_index_scope(
+        monkeypatch):
+    """With more than 20 touched files, a low-churn ?path= is appended to
+    the 20-file index scope instead of being dropped from it.
+
+    Fabricated in the store (no ingest) so the suite stays under the
+    ingest rate limit."""
+    from app.routers import analyze as analyze_router
+    from app.services.git_parser import FileChange, ParsedCommit
+    from app.services.jobs import store
+
+    files = [FileChange(path=f"f{i:02d}.py", additions=2) for i in range(21)]
+    commit = ParsedCommit(
+        sha="a" * 40, message="add twenty-one files", author="Alice",
+        author_email="alice@example.com", committed_at="2026-10-22T00:00:00",
+        files=files)
+    store.store_repo("own-api-manyfiles", "local://manyfiles", [commit])
+
+    seen_scopes: list[list[str]] = []
+    monkeypatch.setattr(
+        analyze_router.embeddings_service, "index_scope",
+        lambda _dir, _repo_id, scope: seen_scopes.append(list(scope)))
+    monkeypatch.setattr(
+        analyze_router.embeddings_service, "similar_chunks",
+        lambda *args, **kw: [])
+    body = client.get("/repos/own-api-manyfiles/ownership",
+                      params={"path": "f20.py"}).json()
+    assert body["owners"]
+    assert len(seen_scopes) == 1
+    assert len(seen_scopes[0]) == 21
+    assert "f20.py" in seen_scopes[0]
