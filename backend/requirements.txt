@@ -12,3 +12,4 @@ groq==0.13.1
 google-genai==1.75.0
 httpx==0.28.1
 python-multipart==0.0.31
+sentry-sdk[fastapi]==2.75.0

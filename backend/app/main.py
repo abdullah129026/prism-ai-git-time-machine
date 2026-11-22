@@ -2,12 +2,16 @@
 
 import json
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager, suppress
 from shutil import which
 
+import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 
 from app.config import Settings, get_settings
 from app.middleware import (
@@ -21,6 +25,16 @@ from app.services.jobs import run_ingest, store
 
 settings = get_settings()
 logger = logging.getLogger("prism.demo")
+
+# Error tracking: active only when SENTRY_DSN is set (Render dashboard),
+# a no-op in local dev and tests. No request bodies or PII are sent.
+if os.environ.get("SENTRY_DSN"):
+    sentry_sdk.init(
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+        environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
+    )
 
 # Cap on commits parsed for the pre-loaded demo repo: fast cold start.
 DEMO_MAX_COMMITS = 500
@@ -113,6 +127,12 @@ def root() -> dict:
 def health() -> dict:
     """Liveness probe: the process is up and serving."""
     return {"status": "ok", "service": "prism-api", "version": settings.app_version}
+
+
+@app.get("/__sentry_test")
+def sentry_test() -> dict:
+    """Temporary: proves Sentry receives errors. Remove after verification."""
+    raise RuntimeError("prism sentry wiring test")
 
 
 @app.get("/ready")
