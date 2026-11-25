@@ -129,12 +129,6 @@ def health() -> dict:
     return {"status": "ok", "service": "prism-api", "version": settings.app_version}
 
 
-@app.get("/__sentry_test")
-def sentry_test() -> dict:
-    """Temporary: proves Sentry receives errors. Remove after verification."""
-    raise RuntimeError("prism sentry wiring test")
-
-
 @app.get("/ready")
 def ready() -> dict:
     """Readiness probe: dependencies needed to serve traffic are present."""
