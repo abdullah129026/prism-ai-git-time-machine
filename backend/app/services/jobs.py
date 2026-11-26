@@ -15,11 +15,15 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.config import get_settings
 from app.services import git_parser
 from app.services.git_parser import ParsedCommit
 from app.services.intent import INTENT_CACHE_VERSION, CommitIntent
+
+if TYPE_CHECKING:
+    from app.services.storage import RepoStorage
 
 
 def _now() -> str:
@@ -41,13 +45,27 @@ class Job:
 
 
 class JobStore:
-    """Thread-safe registry of ingest jobs and parsed repo snapshots."""
+    """Thread-safe registry of ingest jobs and parsed repo snapshots.
 
-    def __init__(self) -> None:
+    With a storage given (v2 item 1), jobs and repos are persisted
+    through it and reloaded on construction, so a backend restart no
+    longer loses ingested repos. Without one, the store is memory-only,
+    as before.
+    """
+
+    def __init__(self, storage: RepoStorage | None = None) -> None:
         self._lock = threading.Lock()
         self._jobs: dict[str, Job] = {}
         self._repos: dict[str, dict] = {}
         self._intents: dict[str, CommitIntent] = {}
+        self._storage = storage
+        if storage is not None:
+            self._repos = storage.load_all_repos()
+            self._jobs = storage.load_all_jobs()
+
+    def _save_job_locked(self, job: Job) -> None:
+        if self._storage is not None:
+            self._storage.save_job(job)
 
     def _intent_key(self, repo_id: str, sha: str) -> str:
         return f"{repo_id}:{sha}"
@@ -109,6 +127,7 @@ class JobStore:
         )
         with self._lock:
             self._jobs[job.job_id] = job
+            self._save_job_locked(job)
         return job
 
     def get(self, job_id: str) -> Job | None:
@@ -122,6 +141,7 @@ class JobStore:
                 return
             for key, value in fields.items():
                 setattr(job, key, value)
+            self._save_job_locked(job)
 
     def store_repo(self, repo_id: str, repo_url: str, commits: list[ParsedCommit]) -> None:
         with self._lock:
@@ -130,6 +150,8 @@ class JobStore:
                 "commits": commits,
                 "parsed_at": _now(),
             }
+            if self._storage is not None:
+                self._storage.save_repo(repo_id, self._repos[repo_id])
 
     def get_repo(self, repo_id: str) -> dict | None:
         with self._lock:
