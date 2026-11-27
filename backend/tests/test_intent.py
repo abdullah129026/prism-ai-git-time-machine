@@ -152,38 +152,58 @@ def test_bedrock_wins_over_gemini_and_groq():
     assert result.model == "qwen.qwen3-32b"
 
 
-def test_bedrock_client_points_at_mantle_base_url():
+def _fake_bedrock_response(payload: dict):
+    body = {"choices": [{"message": {"content": json.dumps(payload)}}]}
+    return SimpleNamespace(
+        raise_for_status=lambda: None,
+        json=lambda: body,
+    )
+
+
+def _recording_post(payload: dict, captured: dict):
+    def post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["json"] = json
+        return _fake_bedrock_response(payload)
+
+    return post
+
+
+def test_bedrock_complete_posts_to_mantle_chat_completions():
     settings = _settings_with(bedrock="bkey")
-    sentinel = object()
-    with patch("app.config.get_settings", return_value=settings), patch("groq.Groq", return_value=sentinel) as groq_cls:
-        assert intent_module._bedrock_client() is sentinel
-    groq_cls.assert_called_once_with(
-        api_key="bkey",
-        base_url="https://bedrock-mantle.us-east-1.api.aws/v1")
+    captured: dict = {}
+    with patch("app.config.get_settings", return_value=settings), patch(
+            "httpx.post", _recording_post(INTENT_PAYLOAD, captured)):
+        result = intent_module._bedrock_complete(build_prompt("msg", "diff"))
+    assert captured["url"] == (
+        "https://bedrock-mantle.us-east-1.api.aws/v1/chat/completions")
+    assert captured["headers"]["Authorization"] == "Bearer bkey"
+    assert result == json.dumps(INTENT_PAYLOAD)
 
 
 def test_bedrock_complete_sends_configured_model():
     settings = _settings_with(bedrock="bkey",
                               bedrock_model="qwen.qwen3-vl-235b-a22b-instruct")
     captured: dict = {}
-    client = _recording_client(INTENT_PAYLOAD, captured)
-    with patch("app.config.get_settings", return_value=settings), patch.object(intent_module, "_bedrock_client", return_value=client):
+    with patch("app.config.get_settings", return_value=settings), patch(
+            "httpx.post", _recording_post(INTENT_PAYLOAD, captured)):
         result = intent_module._bedrock_complete(build_prompt("msg", "diff"))
     assert result == json.dumps(INTENT_PAYLOAD)
-    assert captured["model"] == "qwen.qwen3-vl-235b-a22b-instruct"
-    assert captured["response_format"] == {"type": "json_object"}
+    assert captured["json"]["model"] == "qwen.qwen3-vl-235b-a22b-instruct"
+    assert captured["json"]["response_format"] == {"type": "json_object"}
 
 
-def test_generate_intent_end_to_end_via_stubbed_bedrock_client():
-    """Provider selection plus the real Bedrock call shape plus parsing,
-    wired together with the client stubbed at the mantle boundary."""
+def test_generate_intent_end_to_end_via_stubbed_bedrock_http():
+    """Provider selection plus the real Bedrock HTTP call shape plus parsing,
+    wired together with httpx stubbed at the mantle boundary."""
     settings = _settings_with(bedrock="bkey")
-    with patch("app.config.get_settings", return_value=settings), patch.object(intent_module, "_bedrock_client",
-                      return_value=_fake_client(INTENT_PAYLOAD)):
+    captured: dict = {}
+    with patch("app.config.get_settings", return_value=settings), patch(
+            "httpx.post", _recording_post(INTENT_PAYLOAD, captured)):
         result = generate_intent("abc123", "bump timeout", "+timeout=90")
     assert result.why == INTENT_PAYLOAD["why"]
     assert result.confidence == pytest.approx(0.85)
-    assert result.model == "qwen.qwen3-32b"
 
 
 def test_bedrock_without_key_raises():

@@ -190,8 +190,15 @@ def _groq_complete(messages: list[dict]) -> str:
     return response.choices[0].message.content or ""
 
 
-def _bedrock_client():
-    from groq import Groq
+def _bedrock_complete(messages: list[dict]) -> str:
+    """One Bedrock (mantle) chat completion; returns the raw content string.
+
+    Plain httpx on purpose: the Groq SDK appends its own /openai/v1 path
+    segment to any base_url it is given, so a call aimed at mantle's
+    /v1/chat/completions actually landed on /v1/openai/v1/chat/completions
+    and mantle answered 404. Mantle speaks plain OpenAI-compatible HTTP.
+    """
+    import httpx
 
     from app.config import get_settings
 
@@ -199,26 +206,20 @@ def _bedrock_client():
     if not settings.bedrock_api_key:
         raise IntentUnavailableError(
             "Bedrock API key not configured — set PRISM_BEDROCK_API_KEY")
-    # ponytail: the installed Groq SDK is an OpenAI-compatible client, so
-    # pointing its base_url at the Bedrock mantle endpoint reaches AWS
-    # with no new dependency.
-    key = settings.bedrock_api_key
-    return Groq(api_key=key, base_url=settings.bedrock_base_url)
-
-
-def _bedrock_complete(messages: list[dict]) -> str:
-    """One Bedrock (mantle) chat completion; returns the raw content string."""
-    from app.config import get_settings
-
-    client = _bedrock_client()
-    response = client.chat.completions.create(
-        model=get_settings().bedrock_model,
-        messages=messages,
-        temperature=0.2,
-        max_tokens=600,
-        response_format={"type": "json_object"},
+    response = httpx.post(
+        f"{settings.bedrock_base_url.rstrip('/')}/chat/completions",
+        headers={"Authorization": f"Bearer {settings.bedrock_api_key}"},
+        json={
+            "model": settings.bedrock_model,
+            "messages": messages,
+            "temperature": 0.2,
+            "max_tokens": 600,
+            "response_format": {"type": "json_object"},
+        },
+        timeout=60,
     )
-    return response.choices[0].message.content or ""
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"] or ""
 
 
 def _gemini_complete(messages: list[dict]) -> str:
