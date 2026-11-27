@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     # Amazon Bedrock via the OpenAI-compatible mantle endpoint (primary
     # provider when set: Groq's free limits run out after a few requests).
     bedrock_api_key: str = ""
-    bedrock_model: str = "qwen.qwen3-32b"
+    bedrock_model: str = "qwen.qwen3-vl-235b-a22b-instruct"
     bedrock_base_url: str = "https://bedrock-mantle.us-east-1.api.aws/v1"
     qdrant_url: str = "http://localhost:6333"
 
