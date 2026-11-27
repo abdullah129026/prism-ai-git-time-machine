@@ -75,3 +75,17 @@ def test_predict_conflict_empty_ref_422(repo_id: str):
     resp = client.post(f"/repos/{repo_id}/predict-conflict",
                        json={"base": "", "head": "side-a"})
     assert resp.status_code == 422
+
+
+def test_list_branches_returns_all_branches_default_first(repo_id: str):
+    resp = client.get(f"/repos/{repo_id}/branches")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["default_branch"] == "main"
+    assert body["branches"][0] == "main"
+    assert set(body["branches"]) == {"main", "side-a", "side-b"}
+
+
+def test_list_branches_unknown_repo_404():
+    resp = client.get("/repos/does-not-exist/branches")
+    assert resp.status_code == 404

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GitCompareArrows, Loader2 } from "lucide-react";
 
 import {
   ApiError,
+  getBranches,
   predictConflict,
   type ConflictPrediction,
 } from "@/lib/api";
@@ -34,6 +35,29 @@ export default function BranchCompare() {
   const [status, setStatus] = useState<Status>("idle");
   const [result, setResult] = useState<ConflictPrediction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [branches, setBranches] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (!repoId) return;
+    let live = true;
+    getBranches(repoId)
+      .then((res) => {
+        if (!live || res.branches.length === 0) return;
+        setBranches(res.branches);
+        const def =
+          res.default_branch && res.branches.includes(res.default_branch)
+            ? res.default_branch
+            : res.branches[0];
+        setBase(def);
+        setHead(res.branches.find((b) => b !== def) ?? "");
+      })
+      .catch(() => {
+        // Branch list unavailable: keep the free-text inputs below.
+      });
+    return () => {
+      live = false;
+    };
+  }, [repoId]);
 
   if (!repoId) return null;
 
@@ -74,24 +98,54 @@ export default function BranchCompare() {
       <div className="mt-3 grid grid-cols-2 gap-2">
         <label className="block">
           <span className="text-xs text-ink-faint">Base</span>
-          <input
-            className="input-dark mt-1 font-mono text-xs"
-            value={base}
-            onChange={(e) => setBase(e.target.value)}
-            spellCheck={false}
-            aria-label="Base branch"
-          />
+          {branches ? (
+            <select
+              className="input-dark mt-1 font-mono text-xs"
+              value={base}
+              onChange={(e) => setBase(e.target.value)}
+              aria-label="Base branch"
+            >
+              {branches.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className="input-dark mt-1 font-mono text-xs"
+              value={base}
+              onChange={(e) => setBase(e.target.value)}
+              spellCheck={false}
+              aria-label="Base branch"
+            />
+          )}
         </label>
         <label className="block">
           <span className="text-xs text-ink-faint">Head</span>
-          <input
-            className="input-dark mt-1 font-mono text-xs"
-            value={head}
-            onChange={(e) => setHead(e.target.value)}
-            placeholder="feature/…"
-            spellCheck={false}
-            aria-label="Head branch"
-          />
+          {branches ? (
+            <select
+              className="input-dark mt-1 font-mono text-xs"
+              value={head}
+              onChange={(e) => setHead(e.target.value)}
+              aria-label="Head branch"
+            >
+              {branches.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className="input-dark mt-1 font-mono text-xs"
+              value={head}
+              onChange={(e) => setHead(e.target.value)}
+              placeholder="feature/\u2026"
+              spellCheck={false}
+              aria-label="Head branch"
+            />
+          )}
         </label>
       </div>
 

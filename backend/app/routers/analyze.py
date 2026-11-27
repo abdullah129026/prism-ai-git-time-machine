@@ -284,6 +284,25 @@ def predict_conflict(repo_id: str, body: ConflictRequest) -> ConflictPredictionR
     )
 
 
+class BranchesResponse(BaseModel):
+    branches: list[str]
+    default_branch: str | None
+
+
+@router.get("/{repo_id}/branches", response_model=BranchesResponse)
+def list_branches(repo_id: str) -> BranchesResponse:
+    """Branch names for the conflict-prediction pickers, default first.
+
+    404 when the repo is unknown, same contract as predict-conflict.
+    """
+    snapshot = store.get_repo(repo_id)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404, detail="unknown repo_id — ingest a repo first")
+    names, default = conflict_service.list_branches(repo_dir(repo_id))
+    return BranchesResponse(branches=names, default_branch=default)
+
+
 class OwnershipOwner(BaseModel):
     login: str
     score: float

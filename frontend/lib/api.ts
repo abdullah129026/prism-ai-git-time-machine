@@ -270,3 +270,15 @@ export function predictConflict(
     },
   );
 }
+
+export interface RepoBranches {
+  branches: string[];
+  default_branch: string | null;
+}
+
+/** Branch names for the conflict-prediction pickers, default first. */
+export function getBranches(repoId: string): Promise<RepoBranches> {
+  return request<RepoBranches>(
+    `/repos/${encodeURIComponent(repoId)}/branches`,
+  );
+}

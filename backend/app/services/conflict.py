@@ -228,6 +228,36 @@ def _resolve_ref(repo: Repo, ref: str) -> str:
         return repo.git.rev_parse("--verify", f"origin/{ref}").strip()
 
 
+def list_branches(repo_path: str | Path) -> tuple[list[str], str | None]:
+    """Branch names conflict prediction accepts, default branch first.
+
+    Ingested repos are clones: only the default branch is a local head,
+    the rest are remote-tracking refs. Names come back the way
+    _resolve_ref accepts them, plain, with no origin/ prefix.
+    """
+    repo = Repo(repo_path)
+    names: set[str] = {head.name for head in repo.heads}
+    for remote in repo.remotes:
+        for ref in remote.refs:
+            if ref.remote_head != "HEAD":
+                names.add(ref.remote_head)
+    default: str | None = None
+    try:
+        target = repo.git.symbolic_ref("refs/remotes/origin/HEAD").strip()
+        candidate = target.rsplit("/", 1)[-1]
+        if candidate in names:
+            default = candidate
+    except GitCommandError:
+        pass
+    if default is None and names:
+        default = "main" if "main" in names else min(names)
+    ordered = sorted(names)
+    if default is not None:
+        ordered.remove(default)
+        ordered.insert(0, default)
+    return ordered, default
+
+
 def predict_conflict(repo_path: str | Path, base: str, head: str) -> ConflictPrediction:
     """Probability that merging `head` into `base` hits a conflict.
 
