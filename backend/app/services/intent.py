@@ -1,8 +1,9 @@
 """LLM intent engine: why was this changed? what bug? what risk?
 
-Uses Groq (openai/gpt-oss-120b) by default, or Gemini when PRISM_GEMINI_API_KEY
-is set, with structured JSON output. Results are cached per repo+sha
-(memory + disk) so a commit is only ever analyzed once.
+Uses Amazon Bedrock (mantle endpoint) when PRISM_BEDROCK_API_KEY is set,
+else Gemini when PRISM_GEMINI_API_KEY is set, else Groq
+(openai/gpt-oss-120b), with structured JSON output. Results are cached per
+repo+sha (memory + disk) so a commit is only ever analyzed once.
 """
 
 from __future__ import annotations
@@ -92,22 +93,26 @@ class IntentUnavailableError(RuntimeError):
 def _provider() -> tuple[str, str]:
     """Return (provider, model) for this run.
 
-    Gemini wins when PRISM_GEMINI_API_KEY is set, otherwise Groq.
+    Bedrock wins when PRISM_BEDROCK_API_KEY is set, then Gemini when
+    PRISM_GEMINI_API_KEY is set, otherwise Groq.
     """
     from app.config import get_settings
 
     settings = get_settings()
+    if settings.bedrock_api_key:
+        return "bedrock", settings.bedrock_model
     if settings.gemini_api_key:
         return "gemini", settings.gemini_model
     return "groq", INTENT_MODEL
 
 
 def is_configured() -> bool:
-    """True when a Groq or Gemini API key is present."""
+    """True when a Bedrock, Gemini or Groq API key is present."""
     from app.config import get_settings
 
     settings = get_settings()
-    return bool(settings.groq_api_key or settings.gemini_api_key)
+    return bool(settings.bedrock_api_key or settings.groq_api_key
+                or settings.gemini_api_key)
 
 
 def _truncate_diff(diff: str) -> str:
@@ -185,6 +190,37 @@ def _groq_complete(messages: list[dict]) -> str:
     return response.choices[0].message.content or ""
 
 
+def _bedrock_client():
+    from groq import Groq
+
+    from app.config import get_settings
+
+    settings = get_settings()
+    if not settings.bedrock_api_key:
+        raise IntentUnavailableError(
+            "Bedrock API key not configured — set PRISM_BEDROCK_API_KEY")
+    # ponytail: the installed Groq SDK is an OpenAI-compatible client, so
+    # pointing its base_url at the Bedrock mantle endpoint reaches AWS
+    # with no new dependency.
+    key = settings.bedrock_api_key
+    return Groq(api_key=key, base_url=settings.bedrock_base_url)
+
+
+def _bedrock_complete(messages: list[dict]) -> str:
+    """One Bedrock (mantle) chat completion; returns the raw content string."""
+    from app.config import get_settings
+
+    client = _bedrock_client()
+    response = client.chat.completions.create(
+        model=get_settings().bedrock_model,
+        messages=messages,
+        temperature=0.2,
+        max_tokens=600,
+        response_format={"type": "json_object"},
+    )
+    return response.choices[0].message.content or ""
+
+
 def _gemini_complete(messages: list[dict]) -> str:
     """One Gemini generation; returns the raw text string."""
     from app.config import get_settings
@@ -216,7 +252,8 @@ def _gemini_complete(messages: list[dict]) -> str:
 def generate_intent(sha: str, message: str, diff: str) -> CommitIntent:
     """Generate intent for one commit with the configured provider.
 
-    Gemini is used when PRISM_GEMINI_API_KEY is set, otherwise Groq.
+    Bedrock is used when PRISM_BEDROCK_API_KEY is set, else Gemini when
+    PRISM_GEMINI_API_KEY is set, otherwise Groq.
     Raises IntentUnavailableError when no key is configured or the API
     fails after retries.
     """
@@ -226,7 +263,9 @@ def generate_intent(sha: str, message: str, diff: str) -> CommitIntent:
     last_error: Exception | None = None
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            if provider == "gemini":
+            if provider == "bedrock":
+                content = _bedrock_complete(messages)
+            elif provider == "gemini":
                 content = _gemini_complete(messages)
             else:
                 content = _groq_complete(messages)

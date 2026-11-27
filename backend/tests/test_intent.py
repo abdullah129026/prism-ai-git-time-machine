@@ -1,6 +1,6 @@
 """Unit tests for the intent engine (prompt, parsing, cache, provider selection).
 
-The Groq and Gemini clients are mocked — no network, no API key needed.
+The Groq, Gemini and Bedrock clients are mocked — no network, no API key needed.
 """
 
 import json
@@ -77,14 +77,22 @@ def test_generate_intent_rejects_non_json():
 
 def test_generate_intent_without_api_key_raises():
     settings = SimpleNamespace(groq_api_key="", gemini_api_key="",
-                               gemini_model="gemini-2.0-flash")
+                               gemini_model="gemini-2.0-flash",
+                               bedrock_api_key="",
+                               bedrock_model="qwen.qwen3-32b",
+                               bedrock_base_url="https://bedrock-mantle.us-east-1.api.aws/v1")
     with patch("app.config.get_settings", return_value=settings), pytest.raises(IntentUnavailableError, match="API key"):
         generate_intent("abc123", "msg", "diff")
 
 
-def _settings_with(groq="", gemini="", gemini_model="gemini-2.0-flash"):
+def _settings_with(groq="", gemini="", gemini_model="gemini-2.0-flash",
+                   bedrock="", bedrock_model="qwen.qwen3-32b",
+                   bedrock_base_url="https://bedrock-mantle.us-east-1.api.aws/v1"):
     return SimpleNamespace(groq_api_key=groq, gemini_api_key=gemini,
-                           gemini_model=gemini_model)
+                           gemini_model=gemini_model,
+                           bedrock_api_key=bedrock,
+                           bedrock_model=bedrock_model,
+                           bedrock_base_url=bedrock_base_url)
 
 
 def test_gemini_provider_used_when_key_set():
@@ -112,6 +120,82 @@ def test_groq_still_used_when_only_groq_key_set():
                       return_value=_fake_client(INTENT_PAYLOAD)):
         result = generate_intent("abc123", "msg", "diff")
     assert result.model == intent_module.INTENT_MODEL
+
+
+def _recording_client(payload: dict, captured: dict):
+    def create(**kw):
+        captured.update(kw)
+        return _groq_response(json.dumps(payload))
+
+    completions = SimpleNamespace(create=create)
+    return SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+
+def test_bedrock_provider_used_when_key_set():
+    settings = _settings_with(bedrock="bkey")
+    with patch("app.config.get_settings", return_value=settings), patch.object(intent_module, "_bedrock_complete",
+                      return_value=json.dumps(INTENT_PAYLOAD)) as comp:
+        result = generate_intent("abc123", "msg", "diff")
+    assert comp.called
+    assert result.model == "qwen.qwen3-32b"
+    assert result.why == INTENT_PAYLOAD["why"]
+
+
+def test_bedrock_wins_over_gemini_and_groq():
+    settings = _settings_with(groq="qkey", gemini="gkey", bedrock="bkey")
+    with patch("app.config.get_settings", return_value=settings), patch.object(intent_module, "_bedrock_complete",
+                      return_value=json.dumps(INTENT_PAYLOAD)) as bedrock_comp, patch.object(intent_module, "_gemini_complete",
+                      return_value=json.dumps(INTENT_PAYLOAD)) as gemini_comp:
+        result = generate_intent("abc123", "msg", "diff")
+    assert bedrock_comp.called
+    assert not gemini_comp.called
+    assert result.model == "qwen.qwen3-32b"
+
+
+def test_bedrock_client_points_at_mantle_base_url():
+    settings = _settings_with(bedrock="bkey")
+    sentinel = object()
+    with patch("app.config.get_settings", return_value=settings), patch("groq.Groq", return_value=sentinel) as groq_cls:
+        assert intent_module._bedrock_client() is sentinel
+    groq_cls.assert_called_once_with(
+        api_key="bkey",
+        base_url="https://bedrock-mantle.us-east-1.api.aws/v1")
+
+
+def test_bedrock_complete_sends_configured_model():
+    settings = _settings_with(bedrock="bkey",
+                              bedrock_model="qwen.qwen3-vl-235b-a22b-instruct")
+    captured: dict = {}
+    client = _recording_client(INTENT_PAYLOAD, captured)
+    with patch("app.config.get_settings", return_value=settings), patch.object(intent_module, "_bedrock_client", return_value=client):
+        result = intent_module._bedrock_complete(build_prompt("msg", "diff"))
+    assert result == json.dumps(INTENT_PAYLOAD)
+    assert captured["model"] == "qwen.qwen3-vl-235b-a22b-instruct"
+    assert captured["response_format"] == {"type": "json_object"}
+
+
+def test_generate_intent_end_to_end_via_stubbed_bedrock_client():
+    """Provider selection plus the real Bedrock call shape plus parsing,
+    wired together with the client stubbed at the mantle boundary."""
+    settings = _settings_with(bedrock="bkey")
+    with patch("app.config.get_settings", return_value=settings), patch.object(intent_module, "_bedrock_client",
+                      return_value=_fake_client(INTENT_PAYLOAD)):
+        result = generate_intent("abc123", "bump timeout", "+timeout=90")
+    assert result.why == INTENT_PAYLOAD["why"]
+    assert result.confidence == pytest.approx(0.85)
+    assert result.model == "qwen.qwen3-32b"
+
+
+def test_bedrock_without_key_raises():
+    settings = _settings_with()
+    with patch("app.config.get_settings", return_value=settings), pytest.raises(IntentUnavailableError, match="API key"):
+        intent_module._bedrock_complete([])
+
+
+def test_is_configured_true_with_bedrock_key():
+    settings = _settings_with(bedrock="bkey")
+    with patch("app.config.get_settings", return_value=settings):
+        assert intent_module.is_configured() is True
 
 
 def test_gemini_complete_calls_genai_with_json_config(monkeypatch):
